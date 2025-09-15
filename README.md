@@ -1,4 +1,5 @@
-<p align="center"><img width="301" height="103" alt="Frame 28" src="https://github.com/user-attachments/assets/653f640e-61ab-4d0f-9814-494984fcfa8f" />
+<p align="center"><img width="1202" height="410" alt="Frame 28" src="https://github.com/user-attachments/assets/26788fa5-1f3e-417a-b730-e308d5d41b61" />
+
 </p>
 </p>
 <p align="center">
