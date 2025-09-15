@@ -17,6 +17,24 @@
 
 # Introduction
 
-Apple Music status for Discord Rich Presence On Mac
+vam-rpc is a Open Source Apple Music status for Discord Rich Presence On Mac. This app requires Macos Ventura or Higher. Featuring Button, Pause activity, Customisable refresh interval and More later.
+> [!WARNING]  
+> This app is still in Alpha Development and only tested on Intel Based Macs. Please report any bug/problem if you are encountering it
 
-here goes the text
+# Preview
+### _RP Preview with Buttons. What my friend seeing in my Activity_
+</p>
+<img width="486" height="150" alt="Frame 23" src="https://github.com/user-attachments/assets/41eac37e-b30b-4de7-b09e-40cae4844664" />
+</p>
+
+### _What i see in my profile in my client_
+</p>
+<img width="430" height="147" alt="Frame 24" src="https://github.com/user-attachments/assets/142f8d8e-e1d3-40b2-bced-92173693f2c5" />
+</p>
+
+### _App Preview_
+</p>
+<img width="416" height="470" alt="Frame 25" src="https://github.com/user-attachments/assets/550e6d09-367d-4e70-bf20-614a5bc32fb6" />
+
+# How to Install
+Theres 2 Ways. One by compiling the app yourself or use the precompiled on release.
