@@ -1,5 +1,5 @@
-<p align="center">
-<img width="386" height="105" alt="Frame 26" src="https://github.com/user-attachments/assets/2b3de6df-ecea-4a0e-99ae-03d650cf754a" />
+<p align="center"><img width="1544" height="420" alt="Frame 26" src="https://github.com/user-attachments/assets/114c25b1-6d7e-475f-86f3-3420d1f29bb1" />
+
 
 #vam-rpc-mac
 
