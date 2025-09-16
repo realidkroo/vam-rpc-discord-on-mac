@@ -1,6 +1,7 @@
 // PreferencesViewController.swift
 import Cocoa
 import ServiceManagement
+import QuartzCore // ✨ ADDED: For CATransition
 
 struct Settings: Codable {
     // Page 1
@@ -12,8 +13,6 @@ struct Settings: Codable {
     var appleMusicButtonLabel: String
     
     // Page 2
-
-    
     var enableSonglinkButton: Bool
     var songlinkButtonLabel: String
     var enableYoutubeMusicButton: Bool
@@ -21,7 +20,6 @@ struct Settings: Codable {
     var enableAutoLaunch: Bool
     
     // Page 3
-
     var detailsString: String
     var stateString: String
     var largeImageText: String
@@ -78,8 +76,7 @@ class PreferencesViewController: NSViewController {
     private let detailsStringField = NSTextField()
     private let stateStringField = NSTextField()
     private let largeImageTextField = NSTextField()
-    // ✨ FIXED: Corrected the typo from NSTextFiel to NSTextField
-    private let smallImageTextField = NSTextField() 
+    private let smallImageTextField = NSTextField()
     private let smallImageSourceDropdown = NSPopUpButton(frame: .zero)
 
     private var buttonSwitches: [NSSwitch] { [spotifySwitch, appleMusicSwitch, songlinkSwitch, youtubeMusicSwitch] }
@@ -91,6 +88,9 @@ class PreferencesViewController: NSViewController {
     private let nextButton = NSButton(title: ">", target: self, action: #selector(showNextPage))
     private let saveButton = NSButton(title: "Save & Reopen", target: self, action: #selector(saveSettings))
     private var currentPage = 1
+    
+    // ✨ ADDED: A container view to host the current page stack for animations
+    private var pageContainerView: NSView!
     
     override func loadView() {
         self.view = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 620)) // Increased height
@@ -120,61 +120,42 @@ class PreferencesViewController: NSViewController {
             s.action = #selector(validateButtonSwitches)
         }
 
-        //page 1
-        
+        // Page 1
         let activityHeader = createLabel("Activity", font: .systemFont(ofSize: 16, weight: .semibold))
         let activitySubtitle = createLabel("Select the activity type, you can only choose 1 of 2", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
         activityTypeDropdown.addItems(withTitles: ["Listening", " ( Coming Soon )"])
         let activityNameLabel = createLabel("Activity Name (This will be displayed after activity type)", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
-        
         let optionsHeader = createLabel("Options", font: .systemFont(ofSize: 16, weight: .semibold))
         let refreshLabel = createLabel("Refresh Interval (1-15 in seconds)", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
-        
         let spotifyStack = createSwitchStack(label: "Enable find on spotify Button?", sublabel: "If Enabled, Set the Button Name", switchView: spotifySwitch, textField: spotifyButtonField)
         let appleMusicStack = createSwitchStack(label: "Enable Open On Apple Music Button?", sublabel: "If Enabled, Set the Button Name", switchView: appleMusicSwitch, textField: appleMusicButtonField)
-
-        page1Stack = NSStackView(views: [
-            activityHeader, activitySubtitle, activityTypeDropdown, activityNameLabel, activityNameField,
-            optionsHeader, refreshLabel, refreshIntervalField,
-            spotifyStack, appleMusicStack
-        ])
+        page1Stack = NSStackView(views: [activityHeader, activitySubtitle, activityTypeDropdown, activityNameLabel, activityNameField, optionsHeader, refreshLabel, refreshIntervalField, spotifyStack, appleMusicStack])
         configurePageStack(page1Stack)
 
-//page 2
+        // Page 2
         let linksHeader = createLabel("Link Buttons", font: .systemFont(ofSize: 16, weight: .semibold))
         let songlinkStack = createSwitchStack(label: "Enable Open on Songlink Button?", sublabel: "If Enabled, Set the Button Name", switchView: songlinkSwitch, textField: songlinkButtonField)
         let youtubeMusicStack = createSwitchStack(label: "Enable Open On Youtube Music Button?", sublabel: "If Enabled, Set the Button Name", switchView: youtubeMusicSwitch, textField: youtubeMusicButtonField)
-
         let generalHeader = createLabel("General", font: .systemFont(ofSize: 16, weight: .semibold))
         let autoLaunchStack = createSwitchStack(label: "Enable Auto open app when Login?", sublabel: "Automatically starts VAM-RPC when you log in.", switchView: autoLaunchSwitch)
-
-        page2Stack = NSStackView(views: [
-            linksHeader, songlinkStack, youtubeMusicStack,
-            generalHeader, autoLaunchStack
-        ])
+        page2Stack = NSStackView(views: [linksHeader, songlinkStack, youtubeMusicStack, generalHeader, autoLaunchStack])
         configurePageStack(page2Stack)
         
-        // page 3
+        // Page 3
         let stringHeader = createLabel("String Customisations", font: .systemFont(ofSize: 16, weight: .semibold))
         let stringSublabel = createLabel("Use {name}, {artist}, and {album} as placeholders.", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
-        
         let imageHeader = createLabel("Image Customisations", font: .systemFont(ofSize: 16, weight: .semibold))
         smallImageSourceDropdown.addItems(withTitles: ["Turn It Off", "Use Album Artwork"])
-
-        page3Stack = NSStackView(views: [
-            stringHeader, stringSublabel,
-            createFieldStack(label: "Details String", textField: detailsStringField),
-            createFieldStack(label: "State String", textField: stateStringField),
-            createFieldStack(label: "Large Image Hover Text", textField: largeImageTextField),
-            createFieldStack(label: "Small Image Hover Text", textField: smallImageTextField),
-            imageHeader,
-            createFieldStack(label: "Small Image Source (Circle)", popup: smallImageSourceDropdown)
-        ])
+        page3Stack = NSStackView(views: [stringHeader, stringSublabel, createFieldStack(label: "Details String", textField: detailsStringField), createFieldStack(label: "State String", textField: stateStringField), createFieldStack(label: "Large Image Hover Text", textField: largeImageTextField), createFieldStack(label: "Small Image Hover Text", textField: smallImageTextField), imageHeader, createFieldStack(label: "Small Image Source (Circle)", popup: smallImageSourceDropdown)])
         configurePageStack(page3Stack)
 
         let titleLabel = createLabel("Settings", font: .systemFont(ofSize: 28, weight: .bold))
         let subtitleLabel = createLabel("Apple music Listening status for your discord in your mac.", font: .systemFont(ofSize: 14), color: .secondaryLabelColor)
         let divider = NSBox(); divider.boxType = .separator
+        
+        // ✨ ADDED: Initialize the container and enable layers for animation
+        pageContainerView = NSView()
+        pageContainerView.wantsLayer = true
 
         let resetButton = NSButton(title: "Reset", target: self, action: #selector(resetSettings))
         let helpButton = NSButton(title: "?", target: self, action: #selector(showHelp))
@@ -186,9 +167,10 @@ class PreferencesViewController: NSViewController {
         buttonStack.orientation = .horizontal
         buttonStack.spacing = 12
 
+        // ✨ CHANGED: Add pageContainerView instead of the individual page stacks
         let mainStack = NSStackView(views: [
             titleLabel, subtitleLabel, divider,
-            page1Stack, page2Stack, page3Stack,
+            pageContainerView,
             NSView(), // Spacer
             buttonStack
         ])
@@ -198,6 +180,10 @@ class PreferencesViewController: NSViewController {
         view.addSubview(mainStack)
         mainStack.translatesAutoresizingMaskIntoConstraints = false
         
+        // ✨ ADDED: Set up the initial page in the container
+        pageContainerView.addSubview(page1Stack)
+        page1Stack.translatesAutoresizingMaskIntoConstraints = false
+        
         NSLayoutConstraint.activate([
             mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
             mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
@@ -205,10 +191,14 @@ class PreferencesViewController: NSViewController {
             mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             
             divider.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
-            page1Stack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
-            page2Stack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
-            page3Stack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
-            buttonStack.widthAnchor.constraint(equalTo: mainStack.widthAnchor)
+            pageContainerView.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            buttonStack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            
+            // Constraints for the initial page to fill the container
+            page1Stack.topAnchor.constraint(equalTo: pageContainerView.topAnchor),
+            page1Stack.bottomAnchor.constraint(equalTo: pageContainerView.bottomAnchor),
+            page1Stack.leadingAnchor.constraint(equalTo: pageContainerView.leadingAnchor),
+            page1Stack.trailingAnchor.constraint(equalTo: pageContainerView.trailingAnchor),
         ])
     }
     
@@ -231,14 +221,64 @@ class PreferencesViewController: NSViewController {
         }
     }
     
-    @objc private func showPreviousPage() { if currentPage > 1 { currentPage -= 1; updatePageVisibility() } }
-    @objc private func showNextPage() { if currentPage < 3 { currentPage += 1; updatePageVisibility() } }
+    // ✨ CHANGED: Updated navigation to call the new transition method
+    @objc private func showPreviousPage() {
+        if currentPage > 1 {
+            let oldPage = currentPage
+            currentPage -= 1
+            transition(to: currentPage, from: oldPage)
+            updatePageVisibility()
+        }
+    }
+    
+    @objc private func showNextPage() {
+        if currentPage < 3 {
+            let oldPage = currentPage
+            currentPage += 1
+            transition(to: currentPage, from: oldPage)
+            updatePageVisibility()
+        }
+    }
+    
+    // ✨ ADDED: A helper to get the correct page view
+    private func stack(for page: Int) -> NSStackView? {
+        switch page {
+        case 1: return page1Stack
+        case 2: return page2Stack
+        case 3: return page3Stack
+        default: return nil
+        }
+    }
 
-    private func updatePageVisibility() {
-        page1Stack.isHidden = (currentPage != 1)
-        page2Stack.isHidden = (currentPage != 2)
-        page3Stack.isHidden = (currentPage != 3)
+    // ✨ ADDED: The core animation logic
+    private func transition(to newPage: Int, from oldPage: Int) {
+        guard let fromView = stack(for: oldPage),
+              let toView = stack(for: newPage) else { return }
         
+        let slideDirection: CATransitionSubtype = (newPage > oldPage) ? .fromRight : .fromLeft
+
+        let transition = CATransition()
+        transition.duration = 0.25
+        transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        transition.type = .push
+        transition.subtype = slideDirection
+        
+        pageContainerView.layer?.add(transition, forKey: kCATransition)
+        
+        fromView.removeFromSuperview()
+        pageContainerView.addSubview(toView)
+        
+        toView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            toView.topAnchor.constraint(equalTo: pageContainerView.topAnchor),
+            toView.bottomAnchor.constraint(equalTo: pageContainerView.bottomAnchor),
+            toView.leadingAnchor.constraint(equalTo: pageContainerView.leadingAnchor),
+            toView.trailingAnchor.constraint(equalTo: pageContainerView.trailingAnchor)
+        ])
+    }
+
+    // ✨ CHANGED: This method now only handles button state
+    private func updatePageVisibility() {
         backButton.isEnabled = (currentPage != 1)
         nextButton.isEnabled = (currentPage != 3)
     }
