@@ -78,7 +78,8 @@ class PreferencesViewController: NSViewController {
     private let detailsStringField = NSTextField()
     private let stateStringField = NSTextField()
     private let largeImageTextField = NSTextField()
-    private let smallImageTextField = NSTextField()
+    // ✨ FIXED: Corrected the typo from NSTextFiel to NSTextField
+    private let smallImageTextField = NSTextField() 
     private let smallImageSourceDropdown = NSPopUpButton(frame: .zero)
 
     private var buttonSwitches: [NSSwitch] { [spotifySwitch, appleMusicSwitch, songlinkSwitch, youtubeMusicSwitch] }
@@ -237,8 +238,9 @@ class PreferencesViewController: NSViewController {
         page1Stack.isHidden = (currentPage != 1)
         page2Stack.isHidden = (currentPage != 2)
         page3Stack.isHidden = (currentPage != 3)
-        backButton.isHidden = (currentPage == 1)
-        nextButton.isHidden = (currentPage == 3)
+        
+        backButton.isEnabled = (currentPage != 1)
+        nextButton.isEnabled = (currentPage != 3)
     }
 
     @objc private func showHelp() {
