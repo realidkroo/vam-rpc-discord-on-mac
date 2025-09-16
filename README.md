@@ -48,3 +48,9 @@ Then navigate to the parent folder and run
 ./build.sh
 ```
 When it successfully compiling the app is on build_result
+
+# Dependencies
+To install you only need Deno
+```sh
+Brew install deno
+```
