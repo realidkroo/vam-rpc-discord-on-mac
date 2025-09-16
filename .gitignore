@@ -1,0 +1,8 @@
+build_result/Apple Silicon/VAM-RPC.app/Contents/Info.plist
+build_result/Apple Silicon/VAM-RPC.app/Contents/MacOS/VAM-RPC
+build_result/Apple Silicon/VAM-RPC.app/Contents/Resources/agent.ts
+build_result/Apple Silicon/VAM-RPC.app/Contents/Resources/AppIcon.icns
+build_result/Intel/VAM-RPC.app/Contents/Info.plist
+build_result/Intel/VAM-RPC.app/Contents/MacOS/VAM-RPC
+build_result/Intel/VAM-RPC.app/Contents/Resources/agent.ts
+build_result/Intel/VAM-RPC.app/Contents/Resources/AppIcon.icns

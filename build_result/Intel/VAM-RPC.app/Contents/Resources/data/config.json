@@ -1,0 +1,8 @@
+{
+    "refreshInterval": 5,
+    "activityName": "Apple Music",
+    "enableSpotifyButton": true,
+    "spotifyButtonLabel": "♫ Find On Spotify",
+    "enableAppleMusicButton": true,
+    "appleMusicButtonLabel": "♫ Open on  Music"
+}
