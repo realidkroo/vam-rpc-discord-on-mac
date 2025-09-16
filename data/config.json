@@ -9,5 +9,10 @@
     "songlinkButtonLabel": "♫ Find on Songlink",
     "enableYoutubeMusicButton": true,
     "youtubeMusicButtonLabel": "♫ Find on YT Music",
-    "enableAutoLaunch": false
+    "enableAutoLaunch": false,
+    "detailsString": "Playing {name}",
+    "stateString": "by the artist {artist}",
+    "largeImageText": "Album: {album}",
+    "smallImageText": "{artist}",
+    "smallImageSource": "albumArt"
 }

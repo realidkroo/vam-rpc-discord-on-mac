@@ -12,11 +12,21 @@ struct Settings: Codable {
     var appleMusicButtonLabel: String
     
     // Page 2
+
+    
     var enableSonglinkButton: Bool
     var songlinkButtonLabel: String
     var enableYoutubeMusicButton: Bool
     var youtubeMusicButtonLabel: String
     var enableAutoLaunch: Bool
+    
+    // Page 3
+
+    var detailsString: String
+    var stateString: String
+    var largeImageText: String
+    var smallImageText: String
+    var smallImageSource: String // "default" or "albumArt"
     
     static func defaultSettings() -> Settings {
         return Settings(
@@ -28,9 +38,14 @@ struct Settings: Codable {
             appleMusicButtonLabel: "♫ Open on  Music",
             enableSonglinkButton: false,
             songlinkButtonLabel: "♫ Find on Songlink",
-            enableYoutubeMusicButton: false, 
+            enableYoutubeMusicButton: false,
             youtubeMusicButtonLabel: "♫ Find on YT Music",
-            enableAutoLaunch: false
+            enableAutoLaunch: false,
+            detailsString: "{name}",
+            stateString: "by {artist}",
+            largeImageText: "{name} - {album}",
+            smallImageText: "{artist}",
+            smallImageSource: "default"
         )
     }
 }
@@ -59,17 +74,25 @@ class PreferencesViewController: NSViewController {
     private let youtubeMusicButtonField = NSTextField()
     private let autoLaunchSwitch = NSSwitch()
     
-    private var buttonSwitches: [NSSwitch] { [spotifySwitch, appleMusicSwitch, songlinkSwitch, youtubeMusicSwitch] }
+    // Page 3
+    private let detailsStringField = NSTextField()
+    private let stateStringField = NSTextField()
+    private let largeImageTextField = NSTextField()
+    private let smallImageTextField = NSTextField()
+    private let smallImageSourceDropdown = NSPopUpButton(frame: .zero)
 
+    private var buttonSwitches: [NSSwitch] { [spotifySwitch, appleMusicSwitch, songlinkSwitch, youtubeMusicSwitch] }
 
     private var page1Stack: NSStackView!
     private var page2Stack: NSStackView!
-    private let backButton = NSButton(title: "<", target: self, action: #selector(showPage1))
-    private let nextButton = NSButton(title: ">", target: self, action: #selector(showPage2))
+    private var page3Stack: NSStackView!
+    private let backButton = NSButton(title: "<", target: self, action: #selector(showPreviousPage))
+    private let nextButton = NSButton(title: ">", target: self, action: #selector(showNextPage))
     private let saveButton = NSButton(title: "Save & Reopen", target: self, action: #selector(saveSettings))
+    private var currentPage = 1
     
     override func loadView() {
-        self.view = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 580))
+        self.view = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 620)) // Increased height
         let visualEffectView = NSVisualEffectView()
         visualEffectView.material = .sidebar
         visualEffectView.blendingMode = .behindWindow
@@ -81,30 +104,23 @@ class PreferencesViewController: NSViewController {
         super.viewDidLoad()
         setupUI()
         loadSettings()
-        showPage1() // Start on page 1
+        updatePageVisibility()
     }
     
     private func setupUI() {
-        // Apply rounded bezel style to all text fields
-        activityNameField.usesSingleLineMode = true
-        activityNameField.bezelStyle = .roundedBezel
-        refreshIntervalField.usesSingleLineMode = true
-        refreshIntervalField.bezelStyle = .roundedBezel
-        spotifyButtonField.usesSingleLineMode = true
-        spotifyButtonField.bezelStyle = .roundedBezel
-        appleMusicButtonField.usesSingleLineMode = true
-        appleMusicButtonField.bezelStyle = .roundedBezel
-        songlinkButtonField.usesSingleLineMode = true
-        songlinkButtonField.bezelStyle = .roundedBezel
-        youtubeMusicButtonField.usesSingleLineMode = true
-        youtubeMusicButtonField.bezelStyle = .roundedBezel
+        let allTextFields = [activityNameField, refreshIntervalField, spotifyButtonField, appleMusicButtonField, songlinkButtonField, youtubeMusicButtonField, detailsStringField, stateStringField, largeImageTextField, smallImageTextField]
+        allTextFields.forEach {
+            $0.usesSingleLineMode = true
+            $0.bezelStyle = .roundedBezel
+        }
         
         buttonSwitches.forEach { s in
             s.target = self
             s.action = #selector(validateButtonSwitches)
         }
+
+        //page 1
         
-        // --- Page 1 UI ---
         let activityHeader = createLabel("Activity", font: .systemFont(ofSize: 16, weight: .semibold))
         let activitySubtitle = createLabel("Select the activity type, you can only choose 1 of 2", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
         activityTypeDropdown.addItems(withTitles: ["Listening", " ( Coming Soon )"])
@@ -123,8 +139,8 @@ class PreferencesViewController: NSViewController {
         ])
         configurePageStack(page1Stack)
 
-        // --- Page 2 UI ---
-        let linksHeader = createLabel("Link Buttons (Max 2)", font: .systemFont(ofSize: 16, weight: .semibold))
+//page 2
+        let linksHeader = createLabel("Link Buttons", font: .systemFont(ofSize: 16, weight: .semibold))
         let songlinkStack = createSwitchStack(label: "Enable Open on Songlink Button?", sublabel: "If Enabled, Set the Button Name", switchView: songlinkSwitch, textField: songlinkButtonField)
         let youtubeMusicStack = createSwitchStack(label: "Enable Open On Youtube Music Button?", sublabel: "If Enabled, Set the Button Name", switchView: youtubeMusicSwitch, textField: youtubeMusicButtonField)
 
@@ -136,6 +152,24 @@ class PreferencesViewController: NSViewController {
             generalHeader, autoLaunchStack
         ])
         configurePageStack(page2Stack)
+        
+        // page 3
+        let stringHeader = createLabel("String Customisations", font: .systemFont(ofSize: 16, weight: .semibold))
+        let stringSublabel = createLabel("Use {name}, {artist}, and {album} as placeholders.", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
+        
+        let imageHeader = createLabel("Image Customisations", font: .systemFont(ofSize: 16, weight: .semibold))
+        smallImageSourceDropdown.addItems(withTitles: ["Turn It Off", "Use Album Artwork"])
+
+        page3Stack = NSStackView(views: [
+            stringHeader, stringSublabel,
+            createFieldStack(label: "Details String", textField: detailsStringField),
+            createFieldStack(label: "State String", textField: stateStringField),
+            createFieldStack(label: "Large Image Hover Text", textField: largeImageTextField),
+            createFieldStack(label: "Small Image Hover Text", textField: smallImageTextField),
+            imageHeader,
+            createFieldStack(label: "Small Image Source (Circle)", popup: smallImageSourceDropdown)
+        ])
+        configurePageStack(page3Stack)
 
         let titleLabel = createLabel("Settings", font: .systemFont(ofSize: 28, weight: .bold))
         let subtitleLabel = createLabel("Apple music Listening status for your discord in your mac.", font: .systemFont(ofSize: 14), color: .secondaryLabelColor)
@@ -153,7 +187,7 @@ class PreferencesViewController: NSViewController {
 
         let mainStack = NSStackView(views: [
             titleLabel, subtitleLabel, divider,
-            page1Stack, page2Stack,
+            page1Stack, page2Stack, page3Stack,
             NSView(), // Spacer
             buttonStack
         ])
@@ -172,6 +206,7 @@ class PreferencesViewController: NSViewController {
             divider.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
             page1Stack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
             page2Stack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            page3Stack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
             buttonStack.widthAnchor.constraint(equalTo: mainStack.widthAnchor)
         ])
     }
@@ -182,30 +217,34 @@ class PreferencesViewController: NSViewController {
         stack.spacing = 10
 
         if stack === page1Stack {
-            stack.setCustomSpacing(4, after: stack.views[0])
-            stack.setCustomSpacing(12, after: stack.views[1])
-            stack.setCustomSpacing(4, after: stack.views[2])
-            stack.setCustomSpacing(24, after: stack.views[4])
-            stack.setCustomSpacing(4, after: stack.views[5])
-            stack.setCustomSpacing(12, after: stack.views[6])
-            stack.setCustomSpacing(24, after: stack.views[7])
-            stack.setCustomSpacing(16, after: stack.views[8])
+            stack.setCustomSpacing(4, after: stack.views[0]); stack.setCustomSpacing(12, after: stack.views[1])
+            stack.setCustomSpacing(4, after: stack.views[2]); stack.setCustomSpacing(24, after: stack.views[4])
+            stack.setCustomSpacing(4, after: stack.views[5]); stack.setCustomSpacing(12, after: stack.views[6])
+            stack.setCustomSpacing(24, after: stack.views[7]); stack.setCustomSpacing(16, after: stack.views[8])
         } else if stack === page2Stack {
-            stack.setCustomSpacing(4, after: stack.views[0])
-            stack.setCustomSpacing(24, after: stack.views[2])
+            stack.setCustomSpacing(4, after: stack.views[0]); stack.setCustomSpacing(24, after: stack.views[2])
             stack.setCustomSpacing(4, after: stack.views[3])
+        } else if stack === page3Stack {
+            stack.setCustomSpacing(4, after: stack.views[0]); stack.setCustomSpacing(24, after: stack.views[1])
+            stack.setCustomSpacing(16, after: stack.views[5])
         }
     }
-
-    @objc private func showPage1() { page1Stack.isHidden = false; page2Stack.isHidden = true; nextButton.isHidden = false; backButton.isHidden = true; }
-    @objc private func showPage2() { page1Stack.isHidden = true; page2Stack.isHidden = false; nextButton.isHidden = true; backButton.isHidden = false; }
     
+    @objc private func showPreviousPage() { if currentPage > 1 { currentPage -= 1; updatePageVisibility() } }
+    @objc private func showNextPage() { if currentPage < 3 { currentPage += 1; updatePageVisibility() } }
+
+    private func updatePageVisibility() {
+        page1Stack.isHidden = (currentPage != 1)
+        page2Stack.isHidden = (currentPage != 2)
+        page3Stack.isHidden = (currentPage != 3)
+        backButton.isHidden = (currentPage == 1)
+        nextButton.isHidden = (currentPage == 3)
+    }
+
     @objc private func showHelp() {
         let alert = NSAlert()
         alert.messageText = "lorem ipsum dolor color amet"
-        alert.informativeText = """
-        lorem ipsum dolor color amet im still working on this
-        """
+        alert.informativeText = "lorem ipsum dolor color amet im still working on this"
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
@@ -236,19 +275,22 @@ class PreferencesViewController: NSViewController {
         youtubeMusicButtonField.stringValue = settings.youtubeMusicButtonLabel
         autoLaunchSwitch.state = settings.enableAutoLaunch ? .on : .off
         
+        // Page 3
+        detailsStringField.stringValue = settings.detailsString
+        stateStringField.stringValue = settings.stateString
+        largeImageTextField.stringValue = settings.largeImageText
+        smallImageTextField.stringValue = settings.smallImageText
+        smallImageSourceDropdown.selectItem(at: settings.smallImageSource == "albumArt" ? 1 : 0)
+        
         validateButtonSwitches()
     }
     
     @objc private func validateButtonSwitches() {
         let enabledCount = buttonSwitches.filter { $0.state == .on }.count
         if enabledCount >= 2 {
-            for s in buttonSwitches where s.state == .off {
-                s.isEnabled = false
-            }
+            for s in buttonSwitches where s.state == .off { s.isEnabled = false }
         } else {
-            for s in buttonSwitches {
-                s.isEnabled = true
-            }
+            for s in buttonSwitches { s.isEnabled = true }
         }
     }
 
@@ -268,15 +310,18 @@ class PreferencesViewController: NSViewController {
             songlinkButtonLabel: songlinkButtonField.stringValue,
             enableYoutubeMusicButton: youtubeMusicSwitch.state == .on,
             youtubeMusicButtonLabel: youtubeMusicButtonField.stringValue,
-            enableAutoLaunch: autoLaunchSwitch.state == .on
+            enableAutoLaunch: autoLaunchSwitch.state == .on,
+            detailsString: detailsStringField.stringValue,
+            stateString: stateStringField.stringValue,
+            largeImageText: largeImageTextField.stringValue,
+            smallImageText: smallImageTextField.stringValue,
+            smallImageSource: smallImageSourceDropdown.indexOfSelectedItem == 1 ? "albumArt" : "default"
         )
         
         do {
             let data = try JSONEncoder().encode(currentSettings)
             try data.write(to: URL(fileURLWithPath: configPath))
-            
             SMLoginItemSetEnabled(appBundleId, currentSettings.enableAutoLaunch)
-
             restartService()
             self.view.window?.close()
         } catch {
@@ -297,13 +342,25 @@ class PreferencesViewController: NSViewController {
     private func runShellCommand(_ command: String, arguments: [String]) -> String? { let task = Process(); task.executableURL = URL(fileURLWithPath: command); task.arguments = arguments; let pipe = Pipe(); task.standardOutput = pipe; try? task.run(); let data = pipe.fileHandleForReading.readDataToEndOfFile(); return String(data: data, encoding: .utf8) }
     private func showAlert(title: String, text: String) { let alert = NSAlert(); alert.messageText = title; alert.informativeText = text; alert.runModal() }
     private func createLabel(_ text: String, font: NSFont, color: NSColor = .labelColor) -> NSTextField { let label = NSTextField(labelWithString: text); label.font = font; label.textColor = color; return label }
+    
+    private func createFieldStack(label: String, textField: NSTextField) -> NSStackView {
+        let labelView = createLabel(label, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
+        let stack = NSStackView(views: [labelView, textField]); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4
+        textField.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        return stack
+    }
+    
+    private func createFieldStack(label: String, popup: NSPopUpButton) -> NSStackView {
+        let labelView = createLabel(label, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
+        let stack = NSStackView(views: [labelView, popup]); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4
+        return stack
+    }
+
     private func createSwitchStack(label: String, sublabel: String, switchView: NSSwitch, textField: NSTextField? = nil) -> NSStackView {
         let headerStack = NSStackView(views: [createLabel(label, font: .systemFont(ofSize: 13, weight: .medium)), NSView(), switchView]); headerStack.orientation = .horizontal
         let subLabelView = createLabel(sublabel, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
-        
         var views: [NSView] = [headerStack, subLabelView]
         if let textField = textField { views.append(textField) }
-
         let stack = NSStackView(views: views); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 4; stack.setCustomSpacing(8, after: headerStack)
         headerStack.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         textField?.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true

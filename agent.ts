@@ -16,6 +16,11 @@ interface Settings {
     songlinkButtonLabel: string;
     enableYoutubeMusicButton: boolean;
     youtubeMusicButtonLabel: string;
+    detailsString: string;
+    stateString: string;
+    largeImageText: string;
+    smallImageText: string;
+    smallImageSource: string;
 }
 
 async function loadSettings(): Promise<Settings> {
@@ -30,6 +35,11 @@ async function loadSettings(): Promise<Settings> {
         songlinkButtonLabel: "♫ Find on Songlink",
         enableYoutubeMusicButton: false, 
         youtubeMusicButtonLabel: "♫ Find on YT Music",
+        detailsString: "{name}",
+        stateString: "by {artist}",
+        largeImageText: "{name} - {album}",
+        smallImageText: "{artist}",
+        smallImageSource: "default",
     };
 
     try {
@@ -101,6 +111,14 @@ function ensureValidString(value: string | null | undefined, minLength = 2, maxL
     return value;
 }
 
+function formatString(template: string, track: TrackProps): string {
+    return template
+        .replace(/\{name\}/g, track.name)
+        .replace(/\{artist\}/g, track.artist)
+        .replace(/\{album\}/g, track.album);
+}
+
+
 async function main() {
     console.log("VAM-RPC Agent: Starting service.");
     await Deno.writeTextFile(STATUS_PATH, "Service Starting...");
@@ -131,14 +149,14 @@ async function main() {
                 const activity: Activity = {
                     type: 2, // Listening
                     name: ensureValidString(settings.activityName),
-                    details: ensureValidString(track.name),
-                    state: ensureValidString(`by ${track.artist}`),
+                    details: ensureValidString(formatString(settings.detailsString, track)),
+                    state: ensureValidString(formatString(settings.stateString, track)),
                     timestamps: { start, end },
                     assets: {
                         large_image: extras.artworkUrl ?? "appicon",
-                        large_text: ensureValidString(track.album),
-                        small_image: "music",
-                        small_text: ensureValidString(settings.activityName),
+                        large_text: ensureValidString(formatString(settings.largeImageText, track)),
+                        small_image: settings.smallImageSource === "albumArt" && extras.artworkUrl ? extras.artworkUrl : "music",
+                        small_text: ensureValidString(formatString(settings.smallImageText, track)),
                     }
                 };
                 
