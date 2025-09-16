@@ -59,3 +59,6 @@ To install you only need Deno
 ```sh
 Brew install deno
 ```
+
+## Stargazers over time
+[![Stargazers over time](https://starchart.cc/realidkroo/vam-rpc-discord-on-mac.svg?variant=adaptive)](https://starchart.cc/realidkroo/vam-rpc-discord-on-mac)
