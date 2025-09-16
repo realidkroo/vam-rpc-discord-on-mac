@@ -7,6 +7,12 @@ AGENT_SCRIPT="agent.ts"
 ICON_SOURCE="icon/icon.png"
 DIST_DIR="build_result"
 
+REQUIRED_ASSETS=(
+    "icon/icon.png"
+    "icon/asltolfo.png"
+    "icon/roo.jpg"
+)
+
 dots_array=("." ".." "...")
 spinner_index=0
 rows=$(tput lines)
@@ -34,7 +40,10 @@ build_for_arch() {
     local MACOS_PATH="$CONTENTS_PATH/MacOS"
     local RESOURCES_PATH="$CONTENTS_PATH/Resources"
     mkdir -p "$MACOS_PATH" "$RESOURCES_PATH"
-    iconutil -c icns "icon.iconset" -o "$RESOURCES_PATH/AppIcon.icns" &>/dev/null
+    
+    cp -R "icon.iconset" "$RESOURCES_PATH/"
+    iconutil -c icns "$RESOURCES_PATH/icon.iconset" -o "$RESOURCES_PATH/AppIcon.icns" &>/dev/null
+
     cat > "$CONTENTS_PATH/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -43,8 +52,12 @@ EOF
     swiftc -suppress-warnings -o "$MACOS_PATH/$APP_NAME" $SWIFT_TARGET -sdk "$(xcrun --show-sdk-path)" -framework Cocoa "${SWIFT_SOURCES[@]}"
     cp "$AGENT_SCRIPT" "$RESOURCES_PATH/"
     cp -R "data" "$RESOURCES_PATH/"
-    cp -R "icon" "$RESOURCES_PATH/"
+    
+
+    cp "icon/asltolfo.png" "$RESOURCES_PATH/"
+    cp "icon/roo.jpg" "$RESOURCES_PATH/"
 }
+
 
 trap 'tput cnorm; exit' INT TERM
 tput civis
@@ -53,16 +66,22 @@ echo "Build is started, yay! >_< "
 echo "Do not interupt"
 echo ""
 
+for asset_path in "${REQUIRED_ASSETS[@]}"; do
+    if [ ! -f "$asset_path" ]; then
+        echo -e "\n\n❌ FATAL: Required asset not found at '$asset_path'." >&2
+        tput cnorm; exit 1
+    fi
+done
+echo "All image assets found."
+echo ""
+
 total_steps=4
 update_progress 0 $total_steps "Preparing environment..."
 (
     rm -rf "$DIST_DIR" "icon.iconset"
-    mkdir -p "$DIST_DIR"
-    if [ ! -f "$ICON_SOURCE" ]; then
-        echo -e "\n\nFATAL: Icon source '$ICON_SOURCE' not found." >&2; exit 1;
-    fi
     mkdir -p "icon.iconset"
-    sips -z 1024 1024 "$ICON_SOURCE" --out "icon.iconset/icon_512x512@2x.png" &>/dev/null
+    # Convert ic
+    sips -z 1024 1024 "icon/icon.png" --out "icon.iconset/icon_512x512@2x.png" &>/dev/null
 ) &
 pid=$!
 while kill -0 $pid 2>/dev/null; do sleep 0.3; update_progress 0 $total_steps "Preparing environment..."; done
