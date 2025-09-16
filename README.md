@@ -42,7 +42,7 @@ vam-rpc is a Open Source Apple Music status for Discord Rich Presence On Mac. Th
 <img width="442" height="763" alt="Frame 38" src="https://github.com/user-attachments/assets/5c7ff416-c6da-4ed6-88f2-bd3ccc3710c1" />
 
 # How to Install
-Theres 2 Ways. One by building the app yourself or use the precompiled on [release](https://github.com/realidkroo/vam-rpc-discord-on-mac/releases/tag/Alpha). Install it based on your mac Architecture.
+Theres 2 Ways. One by building the app yourself or use the precompiled on [release](https://github.com/realidkroo/vam-rpc-discord-on-mac/releases). Install it based on your mac Architecture.
 
 ## Building Manually
 Firstly, Clone this Repo by entering this command
