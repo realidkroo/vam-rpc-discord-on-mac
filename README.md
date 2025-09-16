@@ -6,6 +6,7 @@
   <img alt="GitHub last commit" src="https://img.shields.io/github/last-commit/realidkroo/vam-rpc-discord-on-mac?display_timestamp=author&style=for-the-badge&logo=github&color=46adf2">
   <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/realidkroo/vam-rpc-discord-on-mac?style=for-the-badge&logo=star&color=46adf2">
   <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/realidkroo/vam-rpc-discord-on-mac?style=for-the-badge&color=%2346adf2">
+  <img alt="GitHub Downloads (all assets, latest release)" src="https://img.shields.io/github/downloads/realidkroo/vam-rpc-discord-on-mac/latest/total?style=for-the-badge">
 </p>
 <br>
 <br>
