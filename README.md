@@ -23,17 +23,22 @@ vam-rpc is a Open Source Apple Music status for Discord Rich Presence On Mac. Th
 # Preview
 ### _RP Preview with Buttons. What my friend seeing in my Activity_
 </p>
-<img width="486" height="150" alt="Frame 23" src="https://github.com/user-attachments/assets/41eac37e-b30b-4de7-b09e-40cae4844664" />
+<img width="307" height="194" alt="Frame 37" src="https://github.com/user-attachments/assets/e48bf54c-fe54-4bf9-a7fd-2c0beaa5e4c7" />
+
+<img width="430" height="182" alt="Frame 36" src="https://github.com/user-attachments/assets/c16f739a-959c-4046-b446-99c10bc4b5da" />
+
 </p>
 
 ### _What i see in my profile in my client_
 </p>
-<img width="430" height="147" alt="Frame 24" src="https://github.com/user-attachments/assets/142f8d8e-e1d3-40b2-bced-92173693f2c5" />
+<img width="268" height="110" alt="Frame 39" src="https://github.com/user-attachments/assets/898dda48-e6b3-439c-8383-fb255db285e6" />
+
 </p>
+
 
 ### _App Preview_
 </p>
-<img width="416" height="470" alt="Frame 25" src="https://github.com/user-attachments/assets/550e6d09-367d-4e70-bf20-614a5bc32fb6" />
+<img width="442" height="763" alt="Frame 38" src="https://github.com/user-attachments/assets/5c7ff416-c6da-4ed6-88f2-bd3ccc3710c1" />
 
 # How to Install
 Theres 2 Ways. One by building the app yourself or use the precompiled on [release](https://github.com/realidkroo/vam-rpc-discord-on-mac/releases/tag/Alpha). Install it based on your mac Architecture.
