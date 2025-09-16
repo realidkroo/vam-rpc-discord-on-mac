@@ -4,5 +4,10 @@
     "enableSpotifyButton": true,
     "spotifyButtonLabel": "♫ Find On Spotify",
     "enableAppleMusicButton": true,
-    "appleMusicButtonLabel": "♫ Open on  Music"
+    "appleMusicButtonLabel": "♫ Open on  Music",
+    "enableSonglinkButton": true,
+    "songlinkButtonLabel": "♫ Find on Songlink",
+    "enableYoutubeMusicButton": true,
+    "youtubeMusicButtonLabel": "♫ Find on YT Music",
+    "enableAutoLaunch": false
 }

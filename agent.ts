@@ -1,4 +1,4 @@
-// agent.ts 
+// agent.ts
 import { Client, type Activity } from "https://deno.land/x/discord_rpc@0.3.2/mod.ts";
 
 const SUPPORT_DIR = `${Deno.env.get("HOME")}/Library/Application Support/VAM-RPC`;
@@ -12,6 +12,10 @@ interface Settings {
     spotifyButtonLabel: string;
     enableAppleMusicButton: boolean;
     appleMusicButtonLabel: string;
+    enableSonglinkButton: boolean;
+    songlinkButtonLabel: string;
+    enableYoutubeMusicButton: boolean;
+    youtubeMusicButtonLabel: string;
 }
 
 async function loadSettings(): Promise<Settings> {
@@ -22,6 +26,10 @@ async function loadSettings(): Promise<Settings> {
         spotifyButtonLabel: "♫ Find On Spotify",
         enableAppleMusicButton: true,
         appleMusicButtonLabel: "♫ Open on  Music",
+        enableSonglinkButton: false, 
+        songlinkButtonLabel: "♫ Find on Songlink",
+        enableYoutubeMusicButton: false, 
+        youtubeMusicButtonLabel: "♫ Find on YT Music",
     };
 
     try {
@@ -54,12 +62,12 @@ async function getMusicState(): Promise<{ state: "playing" | "paused" | "stopped
         if (state === "playing") {
             try {
                 const track = music.currentTrack;
-                return { 
-                    state: "playing", 
+                return {
+                    state: "playing",
                     track: {
                         name: track.name(), artist: track.artist(), album: track.album(),
                         duration: track.duration(), playerPosition: music.playerPosition()
-                    } 
+                    }
                 };
             } catch (e) { return { state: "paused" }; }
         }
@@ -130,18 +138,27 @@ async function main() {
                         large_image: extras.artworkUrl ?? "appicon",
                         large_text: ensureValidString(track.album),
                         small_image: "music",
-                        small_text: ensureValidString(settings.activityName), 
+                        small_text: ensureValidString(settings.activityName),
                     }
                 };
                 
                 const buttons = [];
+                const searchQuery = encodeURIComponent(`${track.name} ${track.artist}`);
+
                 if (settings.enableAppleMusicButton && extras.trackViewUrl) {
                     buttons.push({ label: ensureValidString(settings.appleMusicButtonLabel, 2, 32), url: extras.trackViewUrl });
                 }
                 if (settings.enableSpotifyButton) {
-                    const spotifyQuery = encodeURIComponent(`${track.name} ${track.artist}`);
-                    const spotifyUrl = `https://open.spotify.com/search/${spotifyQuery}`;
+                    const spotifyUrl = `https://open.spotify.com/search/${searchQuery}`;
                     buttons.push({ label: ensureValidString(settings.spotifyButtonLabel, 2, 32), url: spotifyUrl });
+                }
+                if (settings.enableSonglinkButton) {
+                    const songlinkUrl = `https://song.link/s?q=${searchQuery}`;
+                    buttons.push({ label: ensureValidString(settings.songlinkButtonLabel, 2, 32), url: songlinkUrl });
+                }
+                if (settings.enableYoutubeMusicButton) {
+                    const youtubeMusicUrl = `https://music.youtube.com/search?q=${searchQuery}`;
+                    buttons.push({ label: ensureValidString(settings.youtubeMusicButtonLabel, 2, 32), url: youtubeMusicUrl });
                 }
                 if (buttons.length > 0) { activity.buttons = buttons; }
 
