@@ -3,7 +3,6 @@ import Cocoa
 import ServiceManagement
 import QuartzCore
 
-// MARK: - Animation Extension
 extension NSView {
     private static var isBlurredKey = "isBlurred"
     
@@ -56,7 +55,6 @@ extension NSView {
     }
 }
 
-// MARK: - Custom Controls
 class CustomTextField: NSView, NSTextFieldDelegate {
     private let textField = NSTextField()
     
@@ -189,7 +187,6 @@ class CustomSwitch: NSControl {
     }
 }
 
-// MARK: - Settings Struct
 struct Settings: Codable, Equatable {
     //pg1
     var refreshInterval: Int
@@ -236,7 +233,6 @@ struct Settings: Codable, Equatable {
 }
 
 
-// MARK: - Preview View
 private class PreviewView: NSView {
 
     let activityLabel = NSTextField(labelWithString: "Listening to Apple Music")
@@ -551,7 +547,6 @@ private class PreviewView: NSView {
 }
 
 
-// MARK: - Main View Controller
 class PreferencesViewController: NSViewController, NSTextFieldDelegate {
 
     private let dataDir = NSString(string: "~/Library/Application Support/VAM-RPC/data").expandingTildeInPath
@@ -616,19 +611,15 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        // MODIFIED: Re-architected launch sequence for stability.
-        // 1. Build the UI synchronously but keep the window transparent.
+
         view.window?.alphaValue = 0
         setupUI()
         loadSettings()
         updatePageVisibility()
         updatePreview()
         
-        // 2. Force layout to calculate the final correct size.
         view.layoutSubtreeIfNeeded()
         
-        // 3. Resize the window to that correct size, still off-screen/transparent.
         if let window = view.window {
             if let mainStack = view.subviews.first(where: { $0 is NSStackView }) as? NSStackView {
                 let fittingSize = mainStack.fittingSize
@@ -646,7 +637,6 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
     override func viewDidAppear() {
         super.viewDidAppear()
         
-        // 4. Once the window appears (invisibly), make it visible. NO animation.
         if !hasUISetup {
             hasUISetup = true
             view.window?.alphaValue = 1
@@ -1053,7 +1043,6 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
                 SMLoginItemSetEnabled(appBundleId as CFString, currentSettings.enableAutoLaunch)
             }
             
-            // MODIFIED: Remove closing animation for stability.
             restartService()
             self.view.window?.close()
 
