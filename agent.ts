@@ -148,7 +148,7 @@ async function main() {
 
                 const activity: Activity = {
                     type: 2, // Listening
-                    name: ensureValidString(settings.activityName),
+                    name: ensureValidString(formatString(settings.activityName, track)),
                     details: ensureValidString(formatString(settings.detailsString, track)),
                     state: ensureValidString(formatString(settings.stateString, track)),
                     timestamps: { start, end },

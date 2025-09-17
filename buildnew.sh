@@ -1,15 +1,13 @@
 #!/bin/bash
 set -e
 
-# --- CONFIGURATION ---
+
 APP_NAME="VAM-RPC"
 SWIFT_SOURCES=("Swift/main.swift" "Swift/AppDelegate.swift" "Swift/PreferencesViewController.swift")
 AGENT_SCRIPT="agent.ts"
 ICON_SOURCE="icon/icon.png"
 PROFILE_PIC="icon/roo.png"
 DIST_DIR="build_result"
-
-# --- ANIMATION & PROGRESS ---
 dots_array=("." ".." "...")
 spinner_index=0
 rows=$(tput lines)
@@ -24,11 +22,10 @@ update_progress() {
     local bar=$(printf "%*s" "$filled_len" | tr ' ' '█')
     local empty=$(printf "%*s" $((25 - filled_len)) | tr ' ' '░')
     tput cup $((rows - 1)) 0
-    printf "\033[K" # Clear the line
+    printf "\033[K" # clear 
     printf "[ %s ] [%s%s] %3d%%%s" "$message" "$bar" "$empty" "$percent" "$dots"
 }
 
-# --- BUILD FUNCTION ---
 build_for_arch() {
     local ARCH_NAME=$1
     local SWIFT_TARGET=$2
@@ -40,23 +37,21 @@ build_for_arch() {
 
     mkdir -p "$MACOS_PATH" "$RESOURCES_PATH"
     iconutil -c icns "icon.iconset" -o "$RESOURCES_PATH/AppIcon.icns" &>/dev/null
-    
-    # Copy resources into the app bundle
     cp "$AGENT_SCRIPT" "$RESOURCES_PATH/"
     if [ -f "$PROFILE_PIC" ]; then cp "$PROFILE_PIC" "$RESOURCES_PATH/"; fi
 
-    # Create Info.plist
+   
     cat > "$CONTENTS_PATH/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>CFBundleExecutable</key><string>$APP_NAME</string><key>CFBundleIconFile</key><string>AppIcon.icns</string><key>CFBundleIdentifier</key><string>com.vam-rpc.app</string><key>LSMinimumSystemVersion</key><string>11.0</string><key>LSUIElement</key><true/></dict></plist>
 EOF
     
-    # Compile Swift source
+
     swiftc -suppress-warnings -o "$MACOS_PATH/$APP_NAME" $SWIFT_TARGET -sdk "$(xcrun --show-sdk-path)" -framework Cocoa "${SWIFT_SOURCES[@]}"
 }
 
-# --- MAIN EXECUTION ---
+
 clear
 echo ""
 echo "Build is started, yay! >_< "
@@ -72,7 +67,7 @@ update_progress 0 $total_steps "Preparing environment..."
     rm -rf "$DIST_DIR" "icon.iconset"
     mkdir -p "$DIST_DIR"
     if [ ! -f "$ICON_SOURCE" ]; then
-        echo -e "\n\nFATAL: Icon source '$ICON_SOURCE' not found." >&2; exit 1;
+     echo -e "\n\nFATAL: Icon source '$ICON_SOURCE' not found." >&2; exit 1;
     fi
     mkdir -p "icon.iconset"
     sips -z 1024 1024 "$ICON_SOURCE" --out "icon.iconset/icon_512x512@2x.png" &>/dev/null
