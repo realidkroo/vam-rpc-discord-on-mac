@@ -127,10 +127,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func findDenoExecutable() -> String? { ["/opt/homebrew/bin/deno", "/usr/local/bin/deno", "~/.deno/bin/deno"].first { FileManager.default.fileExists(atPath: NSString(string: $0).expandingTildeInPath) }.map { NSString(string: $0).expandingTildeInPath } }
     private func runShellCommand(_ command: String, arguments: [String]) -> String? { let task = Process(); task.executableURL = URL(fileURLWithPath: command); task.arguments = arguments; let pipe = Pipe(); task.standardOutput = pipe; try? task.run(); let data = pipe.fileHandleForReading.readDataToEndOfFile(); return String(data: data, encoding: .utf8) }
     private func showAlert(title: String, text: String) { let alert = NSAlert(); alert.messageText = title; alert.informativeText = text; alert.runModal(); }
+    
     @objc func showPreferences() {
         if preferencesWindowController == nil {
-            let preferencesVC = PreferencesViewController(); let window = NSWindow(contentViewController: preferencesVC); window.title = "VAM-RPC Settings"; window.styleMask = [.titled, .closable, .miniaturizable]; window.isReleasedWhenClosed = false; window.center(); preferencesWindowController = NSWindowController(window: window)
+            let preferencesVC = PreferencesViewController()
+            let window = NSWindow(contentViewController: preferencesVC)
+            
+            window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isMovableByWindowBackground = true
+            
+            window.title = "VAM-RPC Settings" 
+            window.isReleasedWhenClosed = false
+            window.center()
+            preferencesWindowController = NSWindowController(window: window)
         }
-        preferencesWindowController?.window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        preferencesWindowController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

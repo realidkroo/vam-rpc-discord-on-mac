@@ -3,6 +3,9 @@ import Cocoa
 import ServiceManagement
 import QuartzCore
 
+// (No changes to the NSView extension or Custom UI components)
+// ... all the code from `extension NSView` down to the end of `PreviewView` remains the same ...
+
 extension NSView {
     private static var isBlurredKey = "isBlurred"
     
@@ -606,6 +609,8 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         visualEffectView.material = .sidebar
         visualEffectView.blendingMode = .behindWindow
         visualEffectView.state = .active
+        visualEffectView.wantsLayer = true
+        visualEffectView.layer?.cornerRadius = 12.0
         self.view = visualEffectView
     }
 
@@ -780,7 +785,9 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         page1Stack.translatesAutoresizingMaskIntoConstraints = false
         
         NSLayoutConstraint.activate([
-            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            // --- MODIFIED TOP PADDING ---
+            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 35),
+            
             mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
             mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
@@ -797,6 +804,8 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
             page1Stack.trailingAnchor.constraint(equalTo: pageContainerView.trailingAnchor),
         ])
     }
+    
+    // ... (rest of the file remains the same, no close button action needed)
     
     private func configurePageStack(_ stack: NSStackView) {
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
