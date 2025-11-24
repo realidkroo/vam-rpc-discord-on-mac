@@ -3,6 +3,7 @@ import Cocoa
 import ServiceManagement
 import QuartzCore
 
+
 class CustomButton: NSControl {
     enum Style {
         case primary
@@ -476,7 +477,6 @@ struct Settings: Codable, Equatable {
     }
 }
 
-
 private class PreviewView: NSView {
 
     let activityLabel = NSTextField(labelWithString: "Listening to Apple Music")
@@ -560,9 +560,9 @@ private class PreviewView: NSView {
         smallImageView.layer?.cornerRadius = 14
         
         switch settings.smallImageSource {
-        case "albumArt":
+        case "albumArt", "albumArtAnimated":
             smallImageView.image = NSImage(named: "roo.jpg") // Placeholder
-        case "artistArt":
+        case "artistArt", "artistArtAnimated":
             smallImageView.image = NSImage(systemSymbolName: "person.crop.circle.fill", accessibilityDescription: nil)
             smallImageView.contentTintColor = .white
             smallImageView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.4).cgColor
@@ -573,10 +573,8 @@ private class PreviewView: NSView {
             smallImageView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.6).cgColor
             smallImageView.layer?.borderWidth = 0
         case "appIcon":
-            // Use SF Symbol representing Apple Music or music note
             smallImageView.image = NSImage(systemSymbolName: "applelogo", accessibilityDescription: "Apple Music")
             smallImageView.contentTintColor = .white
-             // Optional: make it look slightly icon-ish
             smallImageView.layer?.backgroundColor = NSColor.systemRed.cgColor
             smallImageView.layer?.borderWidth = 0
         default:
@@ -931,10 +929,10 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         let allSwitches = buttonSwitches + [autoLaunchSwitch]
         allSwitches.forEach { s in
             s.target = self
-            s.action = #selector(controlDidChangeValue)
+            s.action = #selector(controlDidChangeValue(_:)) // UPDATED SELECTOR
         }
-        activityTypeDropdown.target = self; activityTypeDropdown.action = #selector(controlDidChangeValue)
-        smallImageSourceDropdown.target = self; smallImageSourceDropdown.action = #selector(controlDidChangeValue)
+        activityTypeDropdown.target = self; activityTypeDropdown.action = #selector(controlDidChangeValue(_:)) // UPDATED SELECTOR
+        smallImageSourceDropdown.target = self; smallImageSourceDropdown.action = #selector(controlDidChangeValue(_:)) // UPDATED SELECTOR
         
         page1Stack = NSStackView()
         let activityHeader = createLabel("Activity", font: .systemFont(ofSize: 16, weight: .semibold))
@@ -992,13 +990,14 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         let stringSublabel = createLabel("Use {name}, {artist}, and {album} as placeholders.", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
         let imageHeader = createLabel("Image Customisations", font: .systemFont(ofSize: 16, weight: .semibold))
         
-        // ADDED OPTIONS HERE
         smallImageSourceDropdown.addItems(withTitles: [
             "Turn It Off",
             "Use Music Artwork",
             "Use Artist Artwork",
             "Show Playback Status",
-            "Show Apple Music Logo"
+            "Show Apple Music Logo",
+            "Artist Artwork (Experimental)",
+            "Music Artwork (Experimental)"
         ])
         
         let detailsStack = createFieldStack(label: "Details String", textField: detailsStringField)
@@ -1221,6 +1220,8 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         else if settings.smallImageSource == "artistArt" { index = 2 }
         else if settings.smallImageSource == "playbackStatus" { index = 3 }
         else if settings.smallImageSource == "appIcon" { index = 4 }
+        else if settings.smallImageSource == "artistArtAnimated" { index = 5 }
+        else if settings.smallImageSource == "albumArtAnimated" { index = 6 }
         smallImageSourceDropdown.selectItem(at: index)
     }
     
@@ -1271,9 +1272,34 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         }
     }
     
-    @objc private func controlDidChangeValue() {
+    // WARNING UPDATED CONTROL DID CHANGE VALUE
+    @objc private func controlDidChangeValue(_ sender: AnyObject?) {
+        if let dropdown = sender as? CustomDropdown, dropdown === smallImageSourceDropdown {
+            // 5 6 EXPERIMENTAL OPTIONS
+            if [5, 6].contains(dropdown.indexOfSelectedItem) {
+                showExperimentalWarning()
+            }
+        }
+        
         validateButtonSwitches()
         updatePreview()
+    }
+    
+    private func showExperimentalWarning() {
+        let alert = NSAlert()
+        alert.messageText = "Experimental Feature"
+        alert.informativeText = "Warning: This can cause the RPC to crash or become unstable. You might need to add your own API."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Open Documentation")
+        
+        let response = alert.runModal()
+        if response == .alertSecondButtonReturn {
+            // GITHUB URL REPLACE IT FOR DOCS #1
+            if let url = URL(string: "https://github.com/idkroo/VAM-RPC") { 
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
     
     @objc private func sliderDidChangeValue(_ sender: NSSlider) {
@@ -1316,6 +1342,8 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         else if sourceIndex == 2 { sourceString = "artistArt" }
         else if sourceIndex == 3 { sourceString = "playbackStatus" }
         else if sourceIndex == 4 { sourceString = "appIcon" }
+        else if sourceIndex == 5 { sourceString = "artistArtAnimated" }
+        else if sourceIndex == 6 { sourceString = "albumArtAnimated" }
         
         return Settings(
             refreshInterval: interval, activityName: activityNameField.stringValue,

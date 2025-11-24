@@ -1,10 +1,14 @@
 // agent.ts
 import { Client, type Activity } from "https://deno.land/x/discord_rpc@0.3.2/mod.ts";
 
+// HEY HERE, REPLACE THE API BASE TO YOUR API :)
+// EXAMPLE: const SPINNER_API_BASE = "https://your-api.com";
+const SPINNER_API_BASE = "https://able-pig-53.deno.dev"; 
+//JUST THAT, YOU CAN RE COMPILE IT AGAIN :)
 const SUPPORT_DIR = `${Deno.env.get("HOME")}/Library/Application Support/VAM-RPC`;
 const STATUS_PATH = `${SUPPORT_DIR}/status.txt`;
 const CONFIG_PATH = `${SUPPORT_DIR}/data/config.json`;
-//heyyy, here! you can change the icon here if you want different image! maybe in the future we can add custom image support?
+
 const ICONS = {
     PLAY: "https://i.imgur.com/6uuaC8A.png",
     PAUSE: "https://i.imgur.com/8oAUykh.png",
@@ -51,7 +55,7 @@ async function loadSettings(): Promise<Settings> {
     try {
         const content = await Deno.readTextFile(CONFIG_PATH);
         const loaded = { ...defaultSettings, ...JSON.parse(content) };
-        if (!["default", "albumArt", "artistArt", "playbackStatus", "appIcon"].includes(loaded.smallImageSource)) {
+        if (!["default", "albumArt", "artistArt", "playbackStatus", "appIcon", "artistArtAnimated", "albumArtAnimated"].includes(loaded.smallImageSource)) {
             loaded.smallImageSource = "default";
         }
         return loaded;
@@ -77,7 +81,6 @@ async function getMusicState(): Promise<{ state: "playing" | "paused" | "stopped
         if (!music.running()) return { state: "stopped" };
         const state = music.playerState();
         
-        // Return track data even if paused so we can show "Paused: Song Name"
         if (state === "playing" || state === "paused") {
             try {
                 const track = music.currentTrack;
@@ -198,7 +201,6 @@ async function main() {
         try {
             const music = await getMusicState();
 
-            // Handle BOTH playing and paused states
             if ((music.state === "playing" || music.state === "paused") && music.track) {
                 const track = music.track;
                 const isPaused = music.state === "paused";
@@ -207,7 +209,6 @@ async function main() {
 
                 const extras = await fetchTrackExtras(track);
                 
-                // Only calculate timestamps if playing (Discord automatically hides time left if paused, usually)
                 let timestamps;
                 if (!isPaused && track.duration > 0) {
                     const now = Date.now();
@@ -216,7 +217,6 @@ async function main() {
                     timestamps = { start, end };
                 }
 
-                // DETERMINE SMALL IMAGE SOURCE
                 let smallImageKey: string | undefined = undefined;
                 let smallImageTextValue = ensureValidString(formatString(settings.smallImageText, track));
 
@@ -225,28 +225,28 @@ async function main() {
                 } else if (settings.smallImageSource === "artistArt" && extras.artistArtUrl) {
                     smallImageKey = extras.artistArtUrl;
                 } else if (settings.smallImageSource === "playbackStatus") {
-                    // Use web URLs instead of asset keys
                     smallImageKey = isPaused ? ICONS.PAUSE : ICONS.PLAY;
                     smallImageTextValue = isPaused ? "Paused" : "Playing";
                 } else if (settings.smallImageSource === "appIcon") {
-                    // Use web URL
                     smallImageKey = ICONS.APPLE_MUSIC;
                     smallImageTextValue = "Apple Music";
+                } else if (settings.smallImageSource === "artistArtAnimated" && extras.artistArtUrl) {
+    
+                    smallImageKey = `${SPINNER_API_BASE}/spin.gif?url=${encodeURIComponent(extras.artistArtUrl)}`;
+                } else if (settings.smallImageSource === "albumArtAnimated" && extras.albumArtUrl) {
+                    smallImageKey = `${SPINNER_API_BASE}/spin.gif?url=${encodeURIComponent(extras.albumArtUrl)}`;
                 }
 
-                // DETERMINE LARGE IMAGE
-                // If album art is missing, fall back to the generic Apple Music URL (not "appicon")
                 const largeImageKey = extras.albumArtUrl ?? ICONS.APPLE_MUSIC;
 
                 const activity: Activity = {
-                    type: 2, // Listening
+                    type: 2, 
                     name: ensureValidString(formatString(settings.activityName, track)),
                     details: ensureValidString(formatString(settings.detailsString, track)),
                     state: ensureValidString(formatString(settings.stateString, track)),
                     assets: {
                         large_image: largeImageKey,
                         large_text: ensureValidString(formatString(settings.largeImageText, track)),
-                        // Only add small image if key exists
                         ...(smallImageKey ? { 
                             small_image: smallImageKey, 
                             small_text: smallImageTextValue 
@@ -262,23 +262,26 @@ async function main() {
 
                 if (settings.enableAppleMusicButton) {
                     const url = extras.trackViewUrl ? extras.trackViewUrl : `https://music.apple.com/us/search?term=${searchQuery}`;
-                    buttons.push({ label: ensureValidString(settings.appleMusicButtonLabel, 2, 32), url });
+                    const label = formatString(settings.appleMusicButtonLabel, track);
+                    buttons.push({ label: ensureValidString(label, 2, 32), url });
                 }
                 if (settings.enableSpotifyButton) {
-                    buttons.push({ label: ensureValidString(settings.spotifyButtonLabel, 2, 32), url: `https://open.spotify.com/search/${searchQuery}` });
+                    const label = formatString(settings.spotifyButtonLabel, track);
+                    buttons.push({ label: ensureValidString(label, 2, 32), url: `https://open.spotify.com/search/$$${searchQuery}` });
                 }
                 if (settings.enableSonglinkButton) {
-                    buttons.push({ label: ensureValidString(settings.songlinkButtonLabel, 2, 32), url: `https://song.link/s?q=${searchQuery}` });
+                    const label = formatString(settings.songlinkButtonLabel, track);
+                    buttons.push({ label: ensureValidString(label, 2, 32), url: `https://song.link/s?q=${searchQuery}` });
                 }
                 if (settings.enableYoutubeMusicButton) {
-                    buttons.push({ label: ensureValidString(settings.youtubeMusicButtonLabel, 2, 32), url: `https://music.youtube.com/search?q=${searchQuery}` });
+                    const label = formatString(settings.youtubeMusicButtonLabel, track);
+                    buttons.push({ label: ensureValidString(label, 2, 32), url: `https://music.youtube.com/search?q=${searchQuery}` });
                 }
                 if (buttons.length > 0) { activity.buttons = buttons; }
 
                 await rpc.setActivity(activity);
 
             } else {
-                // Stopped
                 await rpc.clearActivity();
                 await Deno.writeTextFile(STATUS_PATH, "Stopped");
             }
