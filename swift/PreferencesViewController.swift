@@ -3,9 +3,6 @@ import Cocoa
 import ServiceManagement
 import QuartzCore
 
-// (No changes to the NSView extension or Custom UI components)
-// ... all the code from `extension NSView` down to the end of `PreviewView` remains the same ...
-
 extension NSView {
     private static var isBlurredKey = "isBlurred"
     
@@ -309,7 +306,13 @@ private class PreviewView: NSView {
         }
         youtubeMusicButton.title = "  \(formatString(settings.youtubeMusicButtonLabel, with: example))  "
 
-        smallImageView.isHidden = (settings.smallImageSource != "albumArt")
+        smallImageView.isHidden = (settings.smallImageSource == "default")
+        
+        if settings.smallImageSource == "artistArt" {
+            // smallImageView.image = NSImage(named: "artist_placeholder") 
+        } else {
+            // smallImageView.image = NSImage(named: "album_placeholder")
+        }
         
         self.previousSettings = settings
     }
@@ -719,7 +722,9 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         let stringHeader = createLabel("String Customisations", font: .systemFont(ofSize: 16, weight: .semibold))
         let stringSublabel = createLabel("Use {name}, {artist}, and {album} as placeholders.", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
         let imageHeader = createLabel("Image Customisations", font: .systemFont(ofSize: 16, weight: .semibold))
-        smallImageSourceDropdown.addItems(withTitles: ["Turn It Off", "Use Album Artwork"])
+        
+        smallImageSourceDropdown.addItems(withTitles: ["Turn It Off", "Use Music Artwork", "Use Artist Artwork"])
+        
         let detailsStack = createFieldStack(label: "Details String", textField: detailsStringField)
         let stateStack = createFieldStack(label: "State String", textField: stateStringField)
         let largeImageStack = createFieldStack(label: "Large Image Hover Text", textField: largeImageTextField)
@@ -785,9 +790,7 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         page1Stack.translatesAutoresizingMaskIntoConstraints = false
         
         NSLayoutConstraint.activate([
-            // --- MODIFIED TOP PADDING ---
             mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 35),
-            
             mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
             mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
@@ -804,8 +807,6 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
             page1Stack.trailingAnchor.constraint(equalTo: pageContainerView.trailingAnchor),
         ])
     }
-    
-    // ... (rest of the file remains the same, no close button action needed)
     
     private func configurePageStack(_ stack: NSStackView) {
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
@@ -935,7 +936,11 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         autoLaunchSwitch.isOn = settings.enableAutoLaunch
         detailsStringField.stringValue = settings.detailsString; stateStringField.stringValue = settings.stateString
         largeImageTextField.stringValue = settings.largeImageText; smallImageTextField.stringValue = settings.smallImageText
-        smallImageSourceDropdown.selectItem(at: settings.smallImageSource == "albumArt" ? 1 : 0)
+        
+        var index = 0
+        if settings.smallImageSource == "albumArt" { index = 1 }
+        else if settings.smallImageSource == "artistArt" { index = 2 }
+        smallImageSourceDropdown.selectItem(at: index)
     }
     
     func controlTextDidChange(_ obj: Notification) {
@@ -1023,6 +1028,12 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
     
     private func captureCurrentSettings() -> Settings {
         let interval = refreshIntervalSlider.integerValue
+        
+        let sourceIndex = smallImageSourceDropdown.indexOfSelectedItem
+        var sourceString = "default"
+        if sourceIndex == 1 { sourceString = "albumArt" }
+        else if sourceIndex == 2 { sourceString = "artistArt" }
+        
         return Settings(
             refreshInterval: interval, activityName: activityNameField.stringValue,
             enableSpotifyButton: spotifySwitch.isOn, spotifyButtonLabel: spotifyButtonField.stringValue,
@@ -1032,7 +1043,7 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
             enableAutoLaunch: autoLaunchSwitch.isOn, detailsString: detailsStringField.stringValue,
             stateString: stateStringField.stringValue, largeImageText: largeImageTextField.stringValue,
             smallImageText: smallImageTextField.stringValue,
-            smallImageSource: smallImageSourceDropdown.indexOfSelectedItem == 1 ? "albumArt" : "default"
+            smallImageSource: sourceString
         )
     }
 

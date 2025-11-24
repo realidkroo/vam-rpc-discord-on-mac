@@ -20,6 +20,7 @@ interface Settings {
     stateString: string;
     largeImageText: string;
     smallImageText: string;
+    // Options: "default", "albumArt", "artistArt"
     smallImageSource: string;
 }
 
@@ -45,14 +46,17 @@ async function loadSettings(): Promise<Settings> {
     try {
         const content = await Deno.readTextFile(CONFIG_PATH);
         const loaded = { ...defaultSettings, ...JSON.parse(content) };
-        console.log(`VAM-RPC Agent: ✅ Successfully loaded settings from ${CONFIG_PATH}`);
+        // Ensure valid smallImageSource
+        if (!["default", "albumArt", "artistArt"].includes(loaded.smallImageSource)) {
+            loaded.smallImageSource = "default";
+        }
+        console.log(`VAM-RPC Agent: ✅ Loaded settings.`);
         return loaded;
     } catch (e) {
-        console.warn(`VAM-RPC Agent: ⚠️ Could not load settings. Using defaults. Reason: ${e.message}`);
+        console.warn(`VAM-RPC Agent: ⚠️ Could not load settings. Using defaults.`);
         return defaultSettings;
     }
 }
-
 
 async function runJsInMusic<T>(script: string): Promise<T> {
     const wrappedScript = `JSON.stringify( (() => { ${script} })() )`;
@@ -86,23 +90,61 @@ async function getMusicState(): Promise<{ state: "playing" | "paused" | "stopped
     return await runJsInMusic(script);
 }
 
-interface TrackExtras { artworkUrl?: string; trackViewUrl?: string; }
+interface TrackExtras { 
+    albumArtUrl?: string; 
+    artistArtUrl?: string;
+    trackViewUrl?: string; 
+}
+
 async function fetchTrackExtras(props: TrackProps): Promise<TrackExtras> {
-    const query = `${props.name} ${props.artist} ${props.album}`.replace(/\(.*\)/g, "").trim();
-    const params = new URLSearchParams({ media: "music", entity: "song", limit: "1", term: query });
-    const url = `https://itunes.apple.com/search?${params}`;
+    const cleanArtist = props.artist.replace(/\(.*\)/g, "").trim();
+    const cleanAlbum = props.album.replace(/\(.*\)/g, "").trim();
+    
+    const [albumData, artistData] = await Promise.all([
+        fetchItunesAlbum(cleanArtist, cleanAlbum),
+        fetchDeezerArtist(cleanArtist)
+    ]);
+
+    return {
+        albumArtUrl: albumData?.artwork,
+        trackViewUrl: albumData?.url,
+        artistArtUrl: artistData
+    };
+}
+
+async function fetchItunesAlbum(artist: string, album: string): Promise<{ artwork: string, url: string } | null> {
+    const query = `${artist} ${album}`;
+    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=album&limit=1`;
+    
     try {
         const resp = await fetch(url);
-        if (resp.ok) {
-            const json = await resp.json();
-            if (json.resultCount > 0) {
-                const result = json.results[0];
-                return { artworkUrl: result.artworkUrl100, trackViewUrl: result.trackViewUrl };
-            }
+        if (!resp.ok) return null;
+        const json = await resp.json();
+        
+        if (json.resultCount > 0) {
+            const result = json.results[0];
+            const highResArt = result.artworkUrl100.replace("100x100bb", "1000x1000bb");
+            return { artwork: highResArt, url: result.collectionViewUrl };
         }
-    } catch { /* Return empty */ }
-    return {};
+    } catch (e) { console.warn("iTunes Fetch Error:", e); }
+    return null;
 }
+
+async function fetchDeezerArtist(artist: string): Promise<string | undefined> {
+    const url = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artist)}&limit=1`;
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) return undefined;
+        const json = await resp.json();
+        
+        if (json.data && json.data.length > 0) {
+            // Deezer provides 'picture_xl' which is a great profile picture
+            return json.data[0].picture_xl ?? json.data[0].picture_medium;
+        }
+    } catch (e) { console.warn("Deezer Fetch Error:", e); }
+    return undefined;
+}
+// ---------------------------
 
 function ensureValidString(value: string | null | undefined, minLength = 2, maxLength = 128): string {
     if (!value) return " ".repeat(minLength);
@@ -118,17 +160,21 @@ function formatString(template: string, track: TrackProps): string {
         .replace(/\{album\}/g, track.album);
 }
 
-
 async function main() {
-    console.log("VAM-RPC Agent: Starting service.");
+    console.log("VAM-RPC Agent: Starting service (Hybrid API Mode).");
     await Deno.writeTextFile(STATUS_PATH, "Service Starting...");
     
     const settings = await loadSettings();
-    console.log("VAM-RPC Agent: Current settings:", settings);
-
     const rpc = new Client({ id: "773825528921849856" });
-    await rpc.connect();
-    console.log("VAM-RPC Agent: ✅ RPC Connected.");
+    
+    try {
+        await rpc.connect();
+        console.log("VAM-RPC Agent: ✅ RPC Connected.");
+    } catch (e) {
+        console.error("Failed to connect to Discord RPC:", e);
+        await Deno.writeTextFile(STATUS_PATH, "Error: Discord RPC Failed");
+        return;
+    }
 
     const tick = async () => {
         try {
@@ -139,6 +185,7 @@ async function main() {
                 await Deno.writeTextFile(STATUS_PATH, `Playing: ${track.name}`);
 
                 const extras = await fetchTrackExtras(track);
+                
                 let start, end;
                 if (track.duration > 0) {
                     const now = Date.now();
@@ -146,16 +193,25 @@ async function main() {
                     end = Math.round(start + (track.duration * 1000));
                 }
 
+                let smallImageKey = "music";
+                
+                if (settings.smallImageSource === "albumArt" && extras.albumArtUrl) {
+                    smallImageKey = extras.albumArtUrl;
+                } else if (settings.smallImageSource === "artistArt" && extras.artistArtUrl) {
+                    smallImageKey = extras.artistArtUrl;
+                }
+
                 const activity: Activity = {
-                    type: 2, // Listening
+                    type: 2, 
                     name: ensureValidString(formatString(settings.activityName, track)),
                     details: ensureValidString(formatString(settings.detailsString, track)),
                     state: ensureValidString(formatString(settings.stateString, track)),
                     timestamps: { start, end },
                     assets: {
-                        large_image: extras.artworkUrl ?? "appicon",
+                        large_image: extras.albumArtUrl ?? "appicon",
                         large_text: ensureValidString(formatString(settings.largeImageText, track)),
-                        small_image: settings.smallImageSource === "albumArt" && extras.artworkUrl ? extras.artworkUrl : "music",
+                        
+                        small_image: smallImageKey,
                         small_text: ensureValidString(formatString(settings.smallImageText, track)),
                     }
                 };
@@ -163,8 +219,11 @@ async function main() {
                 const buttons = [];
                 const searchQuery = encodeURIComponent(`${track.name} ${track.artist}`);
 
-                if (settings.enableAppleMusicButton && extras.trackViewUrl) {
-                    buttons.push({ label: ensureValidString(settings.appleMusicButtonLabel, 2, 32), url: extras.trackViewUrl });
+                if (settings.enableAppleMusicButton) {
+                    const url = extras.trackViewUrl 
+                        ? extras.trackViewUrl 
+                        : `https://music.apple.com/us/search?term=${searchQuery}`;
+                    buttons.push({ label: ensureValidString(settings.appleMusicButtonLabel, 2, 32), url: url });
                 }
                 if (settings.enableSpotifyButton) {
                     const spotifyUrl = `https://open.spotify.com/search/${searchQuery}`;
@@ -198,7 +257,7 @@ async function main() {
 }
 
 main().catch(e => {
-    console.error(`VAM-RPC Agent: A fatal error occurred - ${e.message}`);
-    Deno.writeTextFile(STATUS_PATH, `Fatal Error: ${e.message}. Restart service.`);
+    console.error(`VAM-RPC Agent: Fatal Error - ${e.message}`);
+    Deno.writeTextFile(STATUS_PATH, `Fatal Error: ${e.message}`);
     Deno.exit(1);
 });
