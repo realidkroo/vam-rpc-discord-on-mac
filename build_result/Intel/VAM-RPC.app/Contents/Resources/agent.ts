@@ -98,10 +98,25 @@ async function fetchTrackExtras(props: TrackProps): Promise<TrackExtras> {
     const cleanArtist = props.artist.replace(/\(.*\)/g, "").trim();
     const cleanAlbum = props.album.replace(/\(.*\)/g, "").trim();
     
-    const [albumData, artistData] = await Promise.all([
-        fetchItunesAlbum(cleanArtist, cleanAlbum),
-        fetchDeezerArtist(cleanArtist)
-    ]);
+    // 1. Try to get iTunes data first (High priority)
+    let albumData = await fetchItunesAlbum(cleanArtist, cleanAlbum);
+    
+    // 2. Fallback: If iTunes failed, try Deezer for the album art
+    if (!albumData || !albumData.artwork) {
+        const fallbackArt = await fetchDeezerAlbum(cleanArtist, cleanAlbum);
+        if (fallbackArt) {
+            console.log(`VAM-RPC: Used Deezer fallback for ${cleanAlbum}`);
+            // We preserve the existing URL if iTunes gave a URL but no art (rare), 
+            // otherwise leave URL blank as we can't link to Apple Music via Deezer.
+            albumData = { 
+                artwork: fallbackArt, 
+                url: albumData?.url ?? "" 
+            };
+        }
+    }
+
+    // 3. Get Artist image (Independent)
+    const artistData = await fetchDeezerArtist(cleanArtist);
 
     return {
         albumArtUrl: albumData?.artwork,
@@ -138,9 +153,28 @@ async function fetchDeezerArtist(artist: string): Promise<string | undefined> {
         if (json.data && json.data.length > 0) {
             return json.data[0].picture_xl ?? json.data[0].picture_medium;
         }
-    } catch (e) { console.warn("Deezer Fetch Error:", e); }
+    } catch (e) { console.warn("Deezer Artist Fetch Error:", e); }
     return undefined;
 }
+
+async function fetchDeezerAlbum(artist: string, album: string): Promise<string | undefined> {
+    // Search for the album specifically
+    const query = `${artist} ${album}`;
+    const url = `https://api.deezer.com/search/album?q=${encodeURIComponent(query)}&limit=1`;
+    
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) return undefined;
+        const json = await resp.json();
+        
+        if (json.data && json.data.length > 0) {
+            // Return the highest quality cover available
+            return json.data[0].cover_xl ?? json.data[0].cover_big ?? json.data[0].cover_medium;
+        }
+    } catch (e) { console.warn("Deezer Album Fetch Error:", e); }
+    return undefined;
+}
+
 // ---------------------------
 
 function ensureValidString(value: string | null | undefined, minLength = 2, maxLength = 128): string {
@@ -158,7 +192,7 @@ function formatString(template: string, track: TrackProps): string {
 }
 
 async function main() {
-    console.log("VAM-RPC Agent: Starting service (Hybrid API Mode).");
+    console.log("VAM-RPC Agent: Starting service (Hybrid API Mode + Fallback).");
     await Deno.writeTextFile(STATUS_PATH, "Service Starting...");
     
     const settings = await loadSettings();
@@ -205,6 +239,7 @@ async function main() {
                     state: ensureValidString(formatString(settings.stateString, track)),
                     timestamps: { start, end },
                     assets: {
+                        // Fallback to "appicon" only if both iTunes AND Deezer failed
                         large_image: extras.albumArtUrl ?? "appicon",
                         large_text: ensureValidString(formatString(settings.largeImageText, track)),
                         
@@ -217,12 +252,14 @@ async function main() {
                 const searchQuery = encodeURIComponent(`${track.name} ${track.artist}`);
 
                 if (settings.enableAppleMusicButton) {
+                    // Use the URL from iTunes if found, otherwise perform a generic search link
                     const url = extras.trackViewUrl 
                         ? extras.trackViewUrl 
                         : `https://music.apple.com/us/search?term=${searchQuery}`;
                     buttons.push({ label: ensureValidString(settings.appleMusicButtonLabel, 2, 32), url: url });
                 }
                 if (settings.enableSpotifyButton) {
+                    // Note: The googleusercontent link is a specific trick for Spotify redirection
                     const spotifyUrl = `https://open.spotify.com/search/${searchQuery}`;
                     buttons.push({ label: ensureValidString(settings.spotifyButtonLabel, 2, 32), url: spotifyUrl });
                 }
