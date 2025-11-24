@@ -20,7 +20,6 @@ interface Settings {
     stateString: string;
     largeImageText: string;
     smallImageText: string;
-    // Options: "default", "albumArt", "artistArt"
     smallImageSource: string;
 }
 
@@ -46,7 +45,6 @@ async function loadSettings(): Promise<Settings> {
     try {
         const content = await Deno.readTextFile(CONFIG_PATH);
         const loaded = { ...defaultSettings, ...JSON.parse(content) };
-        // Ensure valid smallImageSource
         if (!["default", "albumArt", "artistArt"].includes(loaded.smallImageSource)) {
             loaded.smallImageSource = "default";
         }
@@ -138,7 +136,6 @@ async function fetchDeezerArtist(artist: string): Promise<string | undefined> {
         const json = await resp.json();
         
         if (json.data && json.data.length > 0) {
-            // Deezer provides 'picture_xl' which is a great profile picture
             return json.data[0].picture_xl ?? json.data[0].picture_medium;
         }
     } catch (e) { console.warn("Deezer Fetch Error:", e); }

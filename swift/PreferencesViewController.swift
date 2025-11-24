@@ -3,6 +3,250 @@ import Cocoa
 import ServiceManagement
 import QuartzCore
 
+class CustomButton: NSControl {
+    enum Style {
+        case primary
+        case secondary
+        case text
+        case circular
+    }
+    
+    var title: String = "" {
+        didSet { textLayer.string = title; updateLayer() }
+    }
+    
+    var style: Style = .secondary {
+        didSet { setupStyle() }
+    }
+    
+    private let backgroundLayer = CALayer()
+    private let textLayer = CATextLayer()
+    
+    override var isEnabled: Bool {
+        didSet { alphaValue = isEnabled ? 1.0 : 0.5 }
+    }
+    
+    override var intrinsicContentSize: NSSize {
+        let width = style == .circular ? 24.0 : (textLayer.preferredFrameSize().width + 24)
+        return NSSize(width: max(width, 30), height: 26)
+    }
+    
+    init(title: String, style: Style = .secondary) {
+        self.title = title
+        self.style = style
+        super.init(frame: .zero)
+        setupView()
+    }
+    
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    
+    private func setupView() {
+        wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
+        
+        backgroundLayer.cornerRadius = 6
+        layer?.addSublayer(backgroundLayer)
+        
+        textLayer.string = title
+        textLayer.fontSize = 13
+        textLayer.alignmentMode = .center
+        textLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2.0
+        textLayer.foregroundColor = NSColor.labelColor.cgColor
+        layer?.addSublayer(textLayer)
+        
+        setupStyle()
+        createTrackingArea()
+    }
+    
+    private func setupStyle() {
+        backgroundLayer.borderWidth = 1
+        
+        switch style {
+        case .primary:
+            backgroundLayer.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.2).cgColor
+            backgroundLayer.borderColor = NSColor.controlAccentColor.withAlphaComponent(0.5).cgColor
+            textLayer.foregroundColor = NSColor.white.cgColor
+        case .secondary:
+            backgroundLayer.backgroundColor = NSColor.white.withAlphaComponent(0.05).cgColor
+            backgroundLayer.borderColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.3).cgColor
+            textLayer.foregroundColor = NSColor.labelColor.cgColor
+        case .text:
+            backgroundLayer.backgroundColor = NSColor.clear.cgColor
+            backgroundLayer.borderColor = NSColor.clear.cgColor
+            textLayer.foregroundColor = NSColor.secondaryLabelColor.cgColor
+        case .circular:
+            backgroundLayer.backgroundColor = NSColor.white.withAlphaComponent(0.05).cgColor
+            backgroundLayer.borderColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.3).cgColor
+            backgroundLayer.cornerRadius = 12 // Half of intrinsic height roughly
+            textLayer.foregroundColor = NSColor.labelColor.cgColor
+        }
+    }
+    
+    override func layout() {
+        super.layout()
+        backgroundLayer.frame = bounds
+        
+        let textHeight: CGFloat = 16
+        let yPos = (bounds.height - textHeight) / 2 - 1 // slight adjust
+        textLayer.frame = CGRect(x: 0, y: yPos, width: bounds.width, height: textHeight)
+    }
+    
+    private func createTrackingArea() {
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(area)
+    }
+    
+    override func mouseEntered(with event: NSEvent) {
+        guard isEnabled else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            if style == .primary {
+                backgroundLayer.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.4).cgColor
+            } else if style != .text {
+                backgroundLayer.backgroundColor = NSColor.white.withAlphaComponent(0.1).cgColor
+            } else {
+                 textLayer.foregroundColor = NSColor.labelColor.cgColor
+            }
+        }
+    }
+    
+    override func mouseExited(with event: NSEvent) {
+        guard isEnabled else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            setupStyle() // Reset to base
+        }
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
+        let originalTransform = layer?.transform ?? CATransform3DIdentity
+        
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.05)
+        layer?.transform = CATransform3DScale(originalTransform, 0.95, 0.95, 1.0)
+        CATransaction.commit()
+        
+        // Wait for mouse up to fire action
+        let window = self.window
+        let eventMask: NSEvent.EventTypeMask = [.leftMouseUp]
+        
+        window?.trackEvents(matching: eventMask, timeout: 10.0, mode: .eventTracking) { event, stop in
+            // Restore scale
+            CATransaction.begin()
+            CATransaction.setAnimationDuration(0.1)
+            self.layer?.transform = originalTransform
+            CATransaction.commit()
+            
+            if let event = event, self.isMousePoint(self.convert(event.locationInWindow, from: nil), in: self.bounds) {
+                self.sendAction(self.action, to: self.target)
+            }
+            stop.pointee = true
+        }
+    }
+}
+
+class CustomDropdown: NSControl {
+    private let backgroundLayer = CALayer()
+    private let textLayer = CATextLayer()
+    private let arrowLayer = CAShapeLayer()
+    private var items: [String] = []
+    
+    var selectedIndex: Int = 0 {
+        didSet {
+            if selectedIndex < items.count {
+                textLayer.string = items[selectedIndex]
+            }
+        }
+    }
+    
+    var selectedTitle: String? {
+        if selectedIndex < items.count { return items[selectedIndex] }
+        return nil
+    }
+
+    override var intrinsicContentSize: NSSize {
+        return NSSize(width: 140, height: 22)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupView()
+    }
+    
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    
+    func addItems(withTitles titles: [String]) {
+        items.append(contentsOf: titles)
+        if selectedIndex < items.count { textLayer.string = items[selectedIndex] }
+    }
+    
+    func selectItem(at index: Int) {
+        guard index >= 0 && index < items.count else { return }
+        selectedIndex = index
+    }
+    
+    var indexOfSelectedItem: Int {
+        return selectedIndex
+    }
+    
+    private func setupView() {
+        wantsLayer = true
+        backgroundLayer.cornerRadius = 5
+        backgroundLayer.backgroundColor = NSColor.black.withAlphaComponent(0.2).cgColor
+        backgroundLayer.borderColor = NSColor.tertiaryLabelColor.withAlphaComponent(0.5).cgColor
+        backgroundLayer.borderWidth = 1
+        layer?.addSublayer(backgroundLayer)
+        
+        textLayer.fontSize = 12
+        textLayer.foregroundColor = NSColor.labelColor.cgColor
+        textLayer.alignmentMode = .left
+        textLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 2.0
+        layer?.addSublayer(textLayer)
+        
+        // Draw Arrow
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: 4))
+        path.addLine(to: CGPoint(x: 4, y: 0))
+        path.addLine(to: CGPoint(x: 8, y: 4))
+        
+        arrowLayer.path = path
+        arrowLayer.strokeColor = NSColor.secondaryLabelColor.cgColor
+        arrowLayer.fillColor = nil
+        arrowLayer.lineWidth = 1.5
+        arrowLayer.lineCap = .round
+        layer?.addSublayer(arrowLayer)
+    }
+    
+    override func layout() {
+        super.layout()
+        backgroundLayer.frame = bounds
+        textLayer.frame = CGRect(x: 8, y: (bounds.height - 14) / 2 - 1, width: bounds.width - 24, height: 15)
+        arrowLayer.position = CGPoint(x: bounds.width - 14, y: bounds.height / 2 - 2)
+    }
+    
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled, !items.isEmpty else { return }
+        
+        let menu = NSMenu()
+        for (index, item) in items.enumerated() {
+            let menuItem = NSMenuItem(title: item, action: #selector(menuItemSelected(_:)), keyEquivalent: "")
+            menuItem.target = self
+            menuItem.tag = index
+            menuItem.state = (index == selectedIndex) ? .on : .off
+            menu.addItem(menuItem)
+        }
+        
+        let location = NSPoint(x: 0, y: bounds.height)
+        menu.popUp(positioning: menu.item(at: selectedIndex), at: location, in: self)
+    }
+    
+    @objc private func menuItemSelected(_ sender: NSMenuItem) {
+        selectedIndex = sender.tag
+        sendAction(action, to: target)
+    }
+}
+
 extension NSView {
     private static var isBlurredKey = "isBlurred"
     
@@ -565,7 +809,7 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
     private var sliderDebounceTimer: Timer?
 
     // Page 1
-    private let activityTypeDropdown = NSPopUpButton(frame: .zero)
+    private let activityTypeDropdown = CustomDropdown(frame: .zero)
     private let activityNameField = CustomTextField()
     private let refreshIntervalSlider = NSSlider(value: 5, minValue: 1, maxValue: 15, target: nil, action: nil)
     private let refreshIntervalValueLabel = NSTextField(labelWithString: "5s")
@@ -586,7 +830,7 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
     private let stateStringField = CustomTextField()
     private let largeImageTextField = CustomTextField()
     private let smallImageTextField = CustomTextField()
-    private let smallImageSourceDropdown = NSPopUpButton(frame: .zero)
+    private let smallImageSourceDropdown = CustomDropdown(frame: .zero)
 
     private var buttonSwitches: [CustomSwitch] { [spotifySwitch, appleMusicSwitch, songlinkSwitch, youtubeMusicSwitch] }
 
@@ -594,9 +838,9 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
     private var page2Stack: NSStackView!
     private var page3Stack: NSStackView!
     
-    private let backButton = NSButton()
-    private let nextButton = NSButton()
-    private let saveButton = NSButton()
+    private let backButton = CustomButton(title: "<", style: .secondary)
+    private let nextButton = CustomButton(title: ">", style: .secondary)
+    private let saveButton = CustomButton(title: "Save & Reopen", style: .primary)
     
     private var currentPage = 1
     
@@ -757,15 +1001,18 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         pageContainerView = NSView()
         pageContainerView.wantsLayer = true
         
-        let resetButton = NSButton(title: "Reset", target: self, action: #selector(resetSettings))
-        let helpButton = NSButton(title: "?", target: self, action: #selector(showHelp))
-        helpButton.bezelStyle = .helpButton
+        let resetButton = CustomButton(title: "Reset", style: .text)
+        resetButton.target = self
+        resetButton.action = #selector(resetSettings)
         
-        backButton.title = "<"; backButton.target = self; backButton.action = #selector(showPreviousPage)
-        nextButton.title = ">"; nextButton.target = self; nextButton.action = #selector(showNextPage)
+        let helpButton = CustomButton(title: "?", style: .circular)
+        helpButton.target = self
+        helpButton.action = #selector(showHelp)
         
-        saveButton.title = "Save & Reopen"; saveButton.target = self; saveButton.action = #selector(saveSettings)
-        saveButton.bezelStyle = .rounded; saveButton.keyEquivalent = "\r"
+        backButton.target = self; backButton.action = #selector(showPreviousPage)
+        nextButton.target = self; nextButton.action = #selector(showNextPage)
+        
+        saveButton.target = self; saveButton.action = #selector(saveSettings)
         
         bottomButtonStack = NSStackView(views: [resetButton, helpButton, NSView(), backButton, nextButton, saveButton])
         bottomButtonStack.orientation = .horizontal; bottomButtonStack.spacing = 12
@@ -1094,7 +1341,7 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         return stack
     }
     
-    private func createFieldStack(label: String, popup: NSPopUpButton) -> NSStackView {
+    private func createFieldStack(label: String, popup: CustomDropdown) -> NSStackView {
         let labelView = createLabel(label, font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
         let stack = NSStackView(views: [labelView, popup]);
         stack.orientation = .vertical;
