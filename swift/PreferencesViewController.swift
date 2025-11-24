@@ -550,12 +550,37 @@ private class PreviewView: NSView {
         }
         youtubeMusicButton.title = "  \(formatString(settings.youtubeMusicButtonLabel, with: example))  "
 
+        // Small Image Logic Updated
         smallImageView.isHidden = (settings.smallImageSource == "default")
         
-        if settings.smallImageSource == "artistArt" {
-            // smallImageView.image = NSImage(named: "artist_placeholder") 
-        } else {
-            // smallImageView.image = NSImage(named: "album_placeholder")
+        // Reset styles
+        smallImageView.layer?.backgroundColor = nil
+        smallImageView.contentTintColor = nil
+        smallImageView.layer?.borderWidth = 2
+        smallImageView.layer?.cornerRadius = 14
+        
+        switch settings.smallImageSource {
+        case "albumArt":
+            smallImageView.image = NSImage(named: "roo.jpg") // Placeholder
+        case "artistArt":
+            smallImageView.image = NSImage(systemSymbolName: "person.crop.circle.fill", accessibilityDescription: nil)
+            smallImageView.contentTintColor = .white
+            smallImageView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.4).cgColor
+            smallImageView.layer?.borderWidth = 0
+        case "playbackStatus":
+            smallImageView.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: "Playing")
+            smallImageView.contentTintColor = .white
+            smallImageView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.6).cgColor
+            smallImageView.layer?.borderWidth = 0
+        case "appIcon":
+            // Use SF Symbol representing Apple Music or music note
+            smallImageView.image = NSImage(systemSymbolName: "applelogo", accessibilityDescription: "Apple Music")
+            smallImageView.contentTintColor = .white
+             // Optional: make it look slightly icon-ish
+            smallImageView.layer?.backgroundColor = NSColor.systemRed.cgColor
+            smallImageView.layer?.borderWidth = 0
+        default:
+            smallImageView.image = nil
         }
         
         self.previousSettings = settings
@@ -967,7 +992,14 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         let stringSublabel = createLabel("Use {name}, {artist}, and {album} as placeholders.", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
         let imageHeader = createLabel("Image Customisations", font: .systemFont(ofSize: 16, weight: .semibold))
         
-        smallImageSourceDropdown.addItems(withTitles: ["Turn It Off", "Use Music Artwork", "Use Artist Artwork"])
+        // ADDED OPTIONS HERE
+        smallImageSourceDropdown.addItems(withTitles: [
+            "Turn It Off",
+            "Use Music Artwork",
+            "Use Artist Artwork",
+            "Show Playback Status",
+            "Show Apple Music Logo"
+        ])
         
         let detailsStack = createFieldStack(label: "Details String", textField: detailsStringField)
         let stateStack = createFieldStack(label: "State String", textField: stateStringField)
@@ -1187,6 +1219,8 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         var index = 0
         if settings.smallImageSource == "albumArt" { index = 1 }
         else if settings.smallImageSource == "artistArt" { index = 2 }
+        else if settings.smallImageSource == "playbackStatus" { index = 3 }
+        else if settings.smallImageSource == "appIcon" { index = 4 }
         smallImageSourceDropdown.selectItem(at: index)
     }
     
@@ -1280,6 +1314,8 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
         var sourceString = "default"
         if sourceIndex == 1 { sourceString = "albumArt" }
         else if sourceIndex == 2 { sourceString = "artistArt" }
+        else if sourceIndex == 3 { sourceString = "playbackStatus" }
+        else if sourceIndex == 4 { sourceString = "appIcon" }
         
         return Settings(
             refreshInterval: interval, activityName: activityNameField.stringValue,
