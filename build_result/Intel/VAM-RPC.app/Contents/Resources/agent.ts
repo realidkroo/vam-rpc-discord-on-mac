@@ -5,6 +5,7 @@ import { Client, type Activity } from "https://deno.land/x/discord_rpc@0.3.2/mod
 // EXAMPLE: const SPINNER_API_BASE = "https://your-api.com";
 const SPINNER_API_BASE = "https://able-pig-53.deno.dev"; 
 //JUST THAT, YOU CAN RE COMPILE IT AGAIN :)
+
 const SUPPORT_DIR = `${Deno.env.get("HOME")}/Library/Application Support/VAM-RPC`;
 const STATUS_PATH = `${SUPPORT_DIR}/status.txt`;
 const CONFIG_PATH = `${SUPPORT_DIR}/data/config.json`;
@@ -105,19 +106,28 @@ interface TrackExtras {
 }
 
 async function fetchTrackExtras(props: TrackProps): Promise<TrackExtras> {
-    const cleanArtist = props.artist.replace(/\(.*\)/g, "").trim();
+    const fullArtistString = props.artist.replace(/\(.*\)/g, "").trim();
     const cleanAlbum = props.album.replace(/\(.*\)/g, "").trim();
     
-    let albumData = await fetchItunesAlbum(cleanArtist, cleanAlbum);
+    // Separators: & , feat. ft. x vs
+    const primaryArtist = fullArtistString.split(/,|&| feat\.| feat | ft\.| ft | x | vs /i)[0].trim();
+
+    let albumData = await fetchItunesAlbum(fullArtistString, cleanAlbum);
+    
+    // If failed, try using just the primary artist
+    if (!albumData || !albumData.artwork) {
+         albumData = await fetchItunesAlbum(primaryArtist, cleanAlbum);
+    }
     
     if (!albumData || !albumData.artwork) {
-        const fallbackArt = await fetchDeezerAlbum(cleanArtist, cleanAlbum);
+        // Fallback to Deezer
+        const fallbackArt = await fetchDeezerAlbum(fullArtistString, cleanAlbum) ?? await fetchDeezerAlbum(primaryArtist, cleanAlbum);
         if (fallbackArt) {
             albumData = { artwork: fallbackArt, url: albumData?.url ?? "" };
         }
     }
 
-    const artistData = await fetchDeezerArtist(cleanArtist);
+    const artistData = await fetchDeezerArtist(primaryArtist);
 
     return {
         albumArtUrl: albumData?.artwork,
@@ -231,9 +241,10 @@ async function main() {
                     smallImageKey = ICONS.APPLE_MUSIC;
                     smallImageTextValue = "Apple Music";
                 } else if (settings.smallImageSource === "artistArtAnimated" && extras.artistArtUrl) {
-    
+                    // Uses spinner API
                     smallImageKey = `${SPINNER_API_BASE}/spin.gif?url=${encodeURIComponent(extras.artistArtUrl)}`;
                 } else if (settings.smallImageSource === "albumArtAnimated" && extras.albumArtUrl) {
+                    // Uses spinner API
                     smallImageKey = `${SPINNER_API_BASE}/spin.gif?url=${encodeURIComponent(extras.albumArtUrl)}`;
                 }
 
