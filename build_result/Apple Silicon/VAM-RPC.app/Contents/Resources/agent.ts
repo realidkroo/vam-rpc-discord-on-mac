@@ -1,11 +1,7 @@
-// agent.ts
 import { Client, type Activity } from "https://deno.land/x/discord_rpc@0.3.2/mod.ts";
 
-// HEY HERE, REPLACE THE API BASE TO YOUR API :)
-// EXAMPLE: const SPINNER_API_BASE = "https://your-api.com";
-const SPINNER_API_BASE = "https://able-pig-53.deno.dev"; 
-//JUST THAT, YOU CAN RE COMPILE IT AGAIN :)
-
+// --- CONFIGURATION ---
+const CLIENT_ID = "773825528921849856";
 const SUPPORT_DIR = `${Deno.env.get("HOME")}/Library/Application Support/VAM-RPC`;
 const STATUS_PATH = `${SUPPORT_DIR}/status.txt`;
 const CONFIG_PATH = `${SUPPORT_DIR}/data/config.json`;
@@ -16,6 +12,7 @@ const ICONS = {
     APPLE_MUSIC: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Apple_Music_icon.svg/512px-Apple_Music_icon.svg.png"
 };
 
+// --- INTERFACES ---
 interface Settings {
     refreshInterval: number;
     activityName: string;
@@ -27,50 +24,68 @@ interface Settings {
     songlinkButtonLabel: string;
     enableYoutubeMusicButton: boolean;
     youtubeMusicButtonLabel: string;
+    enableAutoLaunch: boolean;
+    showWhenHovering: boolean;
     detailsString: string;
     stateString: string;
     largeImageText: string;
     smallImageText: string;
+    thirdString: string;
     smallImageSource: string;
+    enableSmallImage: boolean;
+    spinningSmallImage: boolean;
+    bigImageType: string;
+    enablePauseTimestamp: boolean;
+    timestampType: string;
+    customSpinnerApiUrl: string;
 }
 
-async function loadSettings(): Promise<Settings> {
-    const defaultSettings: Settings = {
-        refreshInterval: 5,
-        activityName: "Apple Music",
-        enableSpotifyButton: true,
-        spotifyButtonLabel: "♫ Find On Spotify",
-        enableAppleMusicButton: true,
-        appleMusicButtonLabel: "♫ Open on  Music",
-        enableSonglinkButton: false, 
-        songlinkButtonLabel: "♫ Find on Songlink",
-        enableYoutubeMusicButton: false, 
-        youtubeMusicButtonLabel: "♫ Find on YT Music",
-        detailsString: "{name}",
-        stateString: "by {artist}",
-        largeImageText: "{name} - {album}",
-        smallImageText: "{artist}",
-        smallImageSource: "default",
-    };
+// Global settings object with defaults to prevent crashes
+let currentSettings: Settings = {
+    refreshInterval: 5,
+    activityName: "Apple Music",
+    enableSpotifyButton: true,
+    spotifyButtonLabel: "Find On Spotify",
+    enableAppleMusicButton: true,
+    appleMusicButtonLabel: "Open on Apple Music",
+    enableSonglinkButton: false,
+    songlinkButtonLabel: "Find on Songlink",
+    enableYoutubeMusicButton: false,
+    youtubeMusicButtonLabel: "Find on YT Music",
+    enableAutoLaunch: false,
+    showWhenHovering: true,
+    detailsString: "{name}",
+    stateString: "by {artist}",
+    largeImageText: "{album}",
+    smallImageText: "{artist}",
+    thirdString: "{name}-{album}",
+    smallImageSource: "default",
+    enableSmallImage: true,
+    spinningSmallImage: false,
+    bigImageType: "Album Art",
+    enablePauseTimestamp: true,
+    timestampType: "Elapsed",
+    customSpinnerApiUrl: "https://able-pig-53.deno.dev"
+};
 
+// --- HELPER FUNCTIONS ---
+
+async function loadSettings() {
     try {
         const content = await Deno.readTextFile(CONFIG_PATH);
-        const loaded = { ...defaultSettings, ...JSON.parse(content) };
-        if (!["default", "albumArt", "artistArt", "playbackStatus", "appIcon", "artistArtAnimated", "albumArtAnimated"].includes(loaded.smallImageSource)) {
-            loaded.smallImageSource = "default";
-        }
-        return loaded;
+        const loaded = JSON.parse(content);
+        // Merge defaults with loaded to ensure all keys exist
+        currentSettings = { ...currentSettings, ...loaded };
     } catch (e) {
-        console.warn(`VAM-RPC Agent: ⚠️ Could not load settings. Using defaults.`);
-        return defaultSettings;
+        // console.warn("Config not found, using defaults");
     }
 }
 
 async function runJsInMusic<T>(script: string): Promise<T> {
     const wrappedScript = `JSON.stringify( (() => { ${script} })() )`;
     const cmd = new Deno.Command("osascript", { args: ["-l", "JavaScript", "-e", wrappedScript] });
-    const { stdout, code, stderr } = await cmd.output();
-    if (code !== 0) throw new Error(`AppleScript Error: ${new TextDecoder().decode(stderr)}`);
+    const { stdout, code } = await cmd.output();
+    if (code !== 0) throw new Error("JXA Execution Failed");
     return JSON.parse(new TextDecoder().decode(stdout)) as T;
 }
 
@@ -99,216 +114,135 @@ async function getMusicState(): Promise<{ state: "playing" | "paused" | "stopped
     return await runJsInMusic(script);
 }
 
-interface TrackExtras { 
-    albumArtUrl?: string; 
-    artistArtUrl?: string;
-    trackViewUrl?: string; 
-}
-
-async function fetchTrackExtras(props: TrackProps): Promise<TrackExtras> {
-    const fullArtistString = props.artist.replace(/\(.*\)/g, "").trim();
-    const cleanAlbum = props.album.replace(/\(.*\)/g, "").trim();
-    
-    // Separators: & , feat. ft. x vs
-    const primaryArtist = fullArtistString.split(/,|&| feat\.| feat | ft\.| ft | x | vs /i)[0].trim();
-
-    let albumData = await fetchItunesAlbum(fullArtistString, cleanAlbum);
-    
-    // If failed, try using just the primary artist
-    if (!albumData || !albumData.artwork) {
-         albumData = await fetchItunesAlbum(primaryArtist, cleanAlbum);
-    }
-    
-    if (!albumData || !albumData.artwork) {
-        // Fallback to Deezer
-        const fallbackArt = await fetchDeezerAlbum(fullArtistString, cleanAlbum) ?? await fetchDeezerAlbum(primaryArtist, cleanAlbum);
-        if (fallbackArt) {
-            albumData = { artwork: fallbackArt, url: albumData?.url ?? "" };
-        }
-    }
-
-    const artistData = await fetchDeezerArtist(primaryArtist);
-
-    return {
-        albumArtUrl: albumData?.artwork,
-        trackViewUrl: albumData?.url,
-        artistArtUrl: artistData
-    };
-}
-
-async function fetchItunesAlbum(artist: string, album: string): Promise<{ artwork: string, url: string } | null> {
+async function fetchTrackExtras(artist: string, album: string) {
     const query = `${artist} ${album}`;
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=album&limit=1`;
     try {
         const resp = await fetch(url);
-        if (!resp.ok) return null;
-        const json = await resp.json();
-        if (json.resultCount > 0) {
-            const result = json.results[0];
-            return { 
-                artwork: result.artworkUrl100.replace("100x100bb", "1000x1000bb"), 
-                url: result.collectionViewUrl 
-            };
+        if (resp.ok) {
+            const json = await resp.json();
+            if (json.resultCount > 0) {
+                return {
+                    artwork: json.results[0].artworkUrl100.replace("100x100bb", "1000x1000bb"),
+                    url: json.results[0].collectionViewUrl
+                };
+            }
         }
-    } catch (e) {}
+    } catch(e) {}
     return null;
 }
 
-async function fetchDeezerArtist(artist: string): Promise<string | undefined> {
-    const url = `https://api.deezer.com/search/artist?q=${encodeURIComponent(artist)}&limit=1`;
-    try {
-        const resp = await fetch(url);
-        if (!resp.ok) return undefined;
-        const json = await resp.json();
-        if (json.data && json.data.length > 0) return json.data[0].picture_xl ?? json.data[0].picture_medium;
-    } catch (e) {}
-    return undefined;
-}
-
-async function fetchDeezerAlbum(artist: string, album: string): Promise<string | undefined> {
-    const query = `${artist} ${album}`;
-    const url = `https://api.deezer.com/search/album?q=${encodeURIComponent(query)}&limit=1`;
-    try {
-        const resp = await fetch(url);
-        if (!resp.ok) return undefined;
-        const json = await resp.json();
-        if (json.data && json.data.length > 0) return json.data[0].cover_xl ?? json.data[0].cover_big;
-    } catch (e) {}
-    return undefined;
-}
-
-function ensureValidString(value: string | null | undefined, minLength = 2, maxLength = 128): string {
-    if (!value) return " ".repeat(minLength);
-    if (value.length < minLength) return value.padEnd(minLength, " ");
-    if (value.length > maxLength) return `${value.slice(0, maxLength - 1)}…`;
-    return value;
-}
-
 function formatString(template: string, track: TrackProps): string {
+    if (!template) return "";
     return template
         .replace(/\{name\}/g, track.name)
         .replace(/\{artist\}/g, track.artist)
         .replace(/\{album\}/g, track.album);
 }
 
+function ensureValid(str: string): string {
+    if (!str || str.trim().length < 2) return "Unknown";
+    return str.length > 127 ? str.substring(0, 127) : str;
+}
+
+// --- MAIN LOGIC ---
+
 async function main() {
-    console.log("VAM-RPC Agent: Starting service...");
     await Deno.writeTextFile(STATUS_PATH, "Service Starting...");
+    await loadSettings();
     
-    const settings = await loadSettings();
-    const rpc = new Client({ id: "773825528921849856" });
+    const rpc = new Client({ id: CLIENT_ID });
     
     try {
         await rpc.connect();
-        console.log("VAM-RPC Agent: ✅ RPC Connected.");
     } catch (e) {
-        console.error("Failed to connect to Discord RPC:", e);
-        await Deno.writeTextFile(STATUS_PATH, "Error: Discord RPC Failed");
-        return;
+        console.error("RPC Connect Error:", e);
+        // Exit so launchd can restart us
+        Deno.exit(1);
     }
 
     const tick = async () => {
         try {
+            await loadSettings();
             const music = await getMusicState();
-
+            
             if ((music.state === "playing" || music.state === "paused") && music.track) {
                 const track = music.track;
                 const isPaused = music.state === "paused";
                 
-                await Deno.writeTextFile(STATUS_PATH, isPaused ? `Paused: ${track.name}` : `Playing: ${track.name}`);
-
-                const extras = await fetchTrackExtras(track);
+                await Deno.writeTextFile(STATUS_PATH, isPaused ? "Paused" : "Playing");
                 
-                let timestamps;
+                const extras = await fetchTrackExtras(track.artist, track.album);
+                
+                const activity: Activity = {
+                    type: 2, // Listening
+                    details: ensureValid(formatString(currentSettings.detailsString, track)),
+                    state: ensureValid(formatString(currentSettings.stateString, track)),
+                    assets: {
+                        large_image: extras?.artwork ?? ICONS.APPLE_MUSIC,
+                        large_text: ensureValid(formatString(currentSettings.largeImageText, track))
+                    }
+                };
+
+                // Timestamps
                 if (!isPaused && track.duration > 0) {
                     const now = Date.now();
                     const start = Math.round(now - (track.playerPosition * 1000));
                     const end = Math.round(start + (track.duration * 1000));
-                    timestamps = { start, end };
+                    activity.timestamps = { start, end };
                 }
 
-                let smallImageKey: string | undefined = undefined;
-                let smallImageTextValue = ensureValidString(formatString(settings.smallImageText, track));
-
-                if (settings.smallImageSource === "albumArt" && extras.albumArtUrl) {
-                    smallImageKey = extras.albumArtUrl;
-                } else if (settings.smallImageSource === "artistArt" && extras.artistArtUrl) {
-                    smallImageKey = extras.artistArtUrl;
-                } else if (settings.smallImageSource === "playbackStatus") {
-                    smallImageKey = isPaused ? ICONS.PAUSE : ICONS.PLAY;
-                    smallImageTextValue = isPaused ? "Paused" : "Playing";
-                } else if (settings.smallImageSource === "appIcon") {
-                    smallImageKey = ICONS.APPLE_MUSIC;
-                    smallImageTextValue = "Apple Music";
-                } else if (settings.smallImageSource === "artistArtAnimated" && extras.artistArtUrl) {
-                    // Uses spinner API
-                    smallImageKey = `${SPINNER_API_BASE}/spin.gif?url=${encodeURIComponent(extras.artistArtUrl)}`;
-                } else if (settings.smallImageSource === "albumArtAnimated" && extras.albumArtUrl) {
-                    // Uses spinner API
-                    smallImageKey = `${SPINNER_API_BASE}/spin.gif?url=${encodeURIComponent(extras.albumArtUrl)}`;
-                }
-
-                const largeImageKey = extras.albumArtUrl ?? ICONS.APPLE_MUSIC;
-
-                const activity: Activity = {
-                    type: 2, 
-                    name: ensureValidString(formatString(settings.activityName, track)),
-                    details: ensureValidString(formatString(settings.detailsString, track)),
-                    state: ensureValidString(formatString(settings.stateString, track)),
-                    assets: {
-                        large_image: largeImageKey,
-                        large_text: ensureValidString(formatString(settings.largeImageText, track)),
-                        ...(smallImageKey ? { 
-                            small_image: smallImageKey, 
-                            small_text: smallImageTextValue 
-                        } : {})
+                // Small Image
+                if (currentSettings.enableSmallImage) {
+                    let smallKey = ICONS.APPLE_MUSIC;
+                    let smallText = ensureValid(formatString(currentSettings.smallImageText, track));
+                    
+                    if (currentSettings.smallImageSource === "playbackStatus") {
+                        smallKey = isPaused ? ICONS.PAUSE : ICONS.PLAY;
+                        smallText = isPaused ? "Paused" : "Playing";
                     }
-                };
-                
-                if (timestamps) { activity.timestamps = timestamps; }
+                    
+                    // Spinner Logic
+                    if (currentSettings.spinningSmallImage && extras?.artwork) {
+                        const api = currentSettings.customSpinnerApiUrl || "https://able-pig-53.deno.dev";
+                        smallKey = `${api}/spin.gif?url=${encodeURIComponent(extras.artwork)}`;
+                    }
+                    
+                    activity.assets!.small_image = smallKey;
+                    activity.assets!.small_text = smallText;
+                }
 
                 // Buttons
                 const buttons = [];
-                const searchQuery = encodeURIComponent(`${track.name} ${track.artist}`);
-
-                if (settings.enableAppleMusicButton) {
-                    const url = extras.trackViewUrl ? extras.trackViewUrl : `https://music.apple.com/us/search?term=${searchQuery}`;
-                    const label = formatString(settings.appleMusicButtonLabel, track);
-                    buttons.push({ label: ensureValidString(label, 2, 32), url });
+                const searchQ = encodeURIComponent(`${track.name} ${track.artist}`);
+                
+                if (currentSettings.enableAppleMusicButton) {
+                    buttons.push({ label: currentSettings.appleMusicButtonLabel, url: extras?.url ?? `https://music.apple.com/us/search?term=${searchQ}` });
                 }
-                if (settings.enableSpotifyButton) {
-                    const label = formatString(settings.spotifyButtonLabel, track);
-                    buttons.push({ label: ensureValidString(label, 2, 32), url: `https://open.spotify.com/search/$$${searchQuery}` });
+                if (currentSettings.enableSpotifyButton) {
+                    buttons.push({ label: currentSettings.spotifyButtonLabel, url: `https://open.spotify.com/search/${searchQ}` });
                 }
-                if (settings.enableSonglinkButton) {
-                    const label = formatString(settings.songlinkButtonLabel, track);
-                    buttons.push({ label: ensureValidString(label, 2, 32), url: `https://song.link/s?q=${searchQuery}` });
+                
+                if (buttons.length > 0) {
+                    activity.buttons = buttons.slice(0, 2);
                 }
-                if (settings.enableYoutubeMusicButton) {
-                    const label = formatString(settings.youtubeMusicButtonLabel, track);
-                    buttons.push({ label: ensureValidString(label, 2, 32), url: `https://music.youtube.com/search?q=${searchQuery}` });
-                }
-                if (buttons.length > 0) { activity.buttons = buttons; }
 
                 await rpc.setActivity(activity);
-
+                
             } else {
                 await rpc.clearActivity();
-                await Deno.writeTextFile(STATUS_PATH, "Stopped");
+                await Deno.writeTextFile(STATUS_PATH, "Idle");
             }
         } catch (e) {
-            console.error(`VAM-RPC Agent: Error - ${(e as Error).message}`);
-            await Deno.writeTextFile(STATUS_PATH, `Error: ${(e as Error).message}`);
+            console.error("Tick Loop Error:", e);
         } finally {
-            setTimeout(tick, settings.refreshInterval * 1000);
+            // SAFETY: Use currentSettings with a hard fallback
+            const interval = currentSettings.refreshInterval || 5;
+            setTimeout(tick, interval * 1000);
         }
     };
-    
+
     tick();
 }
 
-main().catch(e => {
-    console.error(`VAM-RPC Agent: Fatal Error - ${e.message}`);
-    Deno.writeTextFile(STATUS_PATH, `Fatal Error: ${e.message}`);
-    Deno.exit(1);
-});
+main();

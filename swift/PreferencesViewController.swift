@@ -3,6 +3,7 @@ import Cocoa
 import ServiceManagement
 import QuartzCore
 
+// NOTE: struct Settings is in SettingsModel.swift
 
 class CustomButton: NSControl {
     enum Style {
@@ -429,51 +430,6 @@ class CustomSwitch: NSControl {
         thumbLayer.opacity = Float(alpha)
         
         CATransaction.commit()
-    }
-}
-
-struct Settings: Codable, Equatable {
-    //pg1
-    var refreshInterval: Int
-    var activityName: String
-    var enableSpotifyButton: Bool
-    var spotifyButtonLabel: String
-    var enableAppleMusicButton: Bool
-    var appleMusicButtonLabel: String
-    
-    //pg2
-    var enableSonglinkButton: Bool
-    var songlinkButtonLabel: String
-    var enableYoutubeMusicButton: Bool
-    var youtubeMusicButtonLabel: String
-    var enableAutoLaunch: Bool
-    
-    //pg3
-    var detailsString: String
-    var stateString: String
-    var largeImageText: String
-    var smallImageText: String
-    var smallImageSource: String
-    
-    static func defaultSettings() -> Settings {
-        return Settings(
-            refreshInterval: 5,
-            activityName: "Apple Music",
-            enableSpotifyButton: true,
-            spotifyButtonLabel: "♫ Find On Spotify",
-            enableAppleMusicButton: true,
-            appleMusicButtonLabel: "♫ Open on  Music",
-            enableSonglinkButton: false,
-            songlinkButtonLabel: "♫ Find on Songlink",
-            enableYoutubeMusicButton: false,
-            youtubeMusicButtonLabel: "♫ Find on YT Music",
-            enableAutoLaunch: false,
-            detailsString: "{name}",
-            stateString: "by {artist}",
-            largeImageText: "{name} - {album}",
-            smallImageText: "{artist}",
-            smallImageSource: "default"
-        )
     }
 }
 
@@ -1351,10 +1307,29 @@ class PreferencesViewController: NSViewController, NSTextFieldDelegate {
             enableAppleMusicButton: appleMusicSwitch.isOn, appleMusicButtonLabel: appleMusicButtonField.stringValue,
             enableSonglinkButton: songlinkSwitch.isOn, songlinkButtonLabel: songlinkButtonField.stringValue,
             enableYoutubeMusicButton: youtubeMusicSwitch.isOn, youtubeMusicButtonLabel: youtubeMusicButtonField.stringValue,
-            enableAutoLaunch: autoLaunchSwitch.isOn, detailsString: detailsStringField.stringValue,
-            stateString: stateStringField.stringValue, largeImageText: largeImageTextField.stringValue,
+            enableAutoLaunch: autoLaunchSwitch.isOn,
+            
+            // NEW FIELDS (Defaults for Legacy)
+            showWhenHovering: true, 
+            
+            detailsString: detailsStringField.stringValue,
+            stateString: stateStringField.stringValue,
+            largeImageText: largeImageTextField.stringValue,
             smallImageText: smallImageTextField.stringValue,
-            smallImageSource: sourceString
+            
+            // NEW FIELD
+            thirdString: "{name}-{album}",
+            
+            smallImageSource: sourceString,
+            
+            // NEW FIELDS
+            enableSmallImage: true,
+            spinningSmallImage: false,
+            bigImageType: "Album Art",
+            enablePauseTimestamp: true,
+            timestampType: "Elapsed",
+            
+            customSpinnerApiUrl: "https://able-pig-53.deno.dev"
         )
     }
 
