@@ -76,7 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             
             // Set minimum size
-            win.minSize = NSSize(width: 1100, height: 520)
+            win.minSize = NSSize(width: 1200, height: 800)
             
             // Configure window appearance
             win.titlebarAppearsTransparent = true

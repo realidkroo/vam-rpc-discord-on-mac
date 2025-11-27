@@ -38,6 +38,8 @@ class SidebarView: NSView {
     private var sectionHeaders: [SidebarSectionHeader] = []
     private var buttons: [SidebarButton] = []
     private var currentSelectedButton: SidebarButton?
+    // Keep references to any manual spacers so we can hide them when collapsed
+    private var sectionSpacers: [(view: NSView, height: NSLayoutConstraint, original: CGFloat)] = []
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -98,6 +100,8 @@ class SidebarView: NSView {
         // --- Scroll & Stack Setup ---
         
         // Stack View
+        // Controls vertical spacing between every arranged item.
+        // Adjust `stackView.spacing` to change uniform spacing (e.g., 6).
         stackView.orientation = .vertical
         stackView.alignment = .leading
         stackView.spacing = 0
@@ -149,20 +153,29 @@ class SidebarView: NSView {
         ])
         
         // Populate
+        // NOTE: to add a custom spacer before a specific section (for example
+        // before "App Info"), insert an arranged spacer view like this:
+        // let spacer = NSView()
+        // spacer.translatesAutoresizingMaskIntoConstraints = false
+        // spacer.heightAnchor.constraint(equalToConstant: 8).isActive = true
+        // stackView.addArrangedSubview(spacer)
         addSection("Looks & Home")
         addButton("Preview", icon: "eye.fill", index: 0)
-        
+        // spacer between header groups
+        addSectionSpacer(42)
+
         addSection("Settings")
         addButton("App", icon: "gearshape.fill", index: 1)
         addButton("RPC Settings", icon: "slider.horizontal.3", index: 2)
         addButton("Buttons & Integrations", icon: "link", index: 3)
         addButton("Actions", icon: "command", index: 4)
         addButton("Experimental Settings", icon: "flask.fill", index: 5)
-        
+        addSectionSpacer(42)
+
         addSection("App Info")
         addButton("Credits", icon: "person.2.fill", index: 6)
         addButton("About app", icon: "info.circle", index: 7)
-
+        addSectionSpacer(42)
         addSection("Misc")
         addLegacyButton()
         
@@ -215,6 +228,17 @@ class SidebarView: NSView {
         stackView.addArrangedSubview(header)
         header.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
         sectionHeaders.append(header)
+    }
+
+    // Create a fixed-height spacer and keep a reference so we can hide it
+    // when the sidebar is collapsed.
+    private func addSectionSpacer(_ height: CGFloat) {
+        let spacer = NSView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        let h = spacer.heightAnchor.constraint(equalToConstant: height)
+        h.isActive = true
+        stackView.addArrangedSubview(spacer)
+        sectionSpacers.append((view: spacer, height: h, original: height))
     }
     
     private func addButton(_ text: String, icon: String, index: Int) {
@@ -277,10 +301,20 @@ class SidebarView: NSView {
             self.titleLabel.alphaValue = 0
             self.buttons.forEach { $0.setTextVisible(false) }
             self.sectionHeaders.forEach { $0.setCollapsed(true) }
+            // Hide any manual spacers when collapsed to remove extra gaps
+            self.sectionSpacers.forEach { pair in
+                pair.view.isHidden = true
+                pair.height.constant = 0
+            }
         } else {
             self.sectionHeaders.forEach { $0.setCollapsed(false) }
             self.titleLabel.alphaValue = 0
             self.buttons.forEach { $0.setTextVisible(false) }
+            // Restore spacers when expanded
+            self.sectionSpacers.forEach { pair in
+                pair.view.isHidden = false
+                pair.height.constant = pair.original
+            }
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 NSAnimationContext.runAnimationGroup { ctx in
@@ -302,6 +336,9 @@ class SidebarSectionHeader: NSView {
     
     init(text: String) {
         super.init(frame: .zero)
+        // Section header height: controls the vertical space the header uses.
+        // Reduce this (for example to 20) to bring the subtitle/header closer
+        // to neighboring buttons.
         self.heightAnchor.constraint(equalToConstant: 28).isActive = true
         
         label.stringValue = text
@@ -333,7 +370,7 @@ class SidebarSectionHeader: NSView {
         line.alphaValue = collapsed ? 1 : 0
     }
 }
-
+//control for button size
 class SidebarButton: NSControl {
     let index: Int
     private let iconView = NSImageView()
@@ -343,8 +380,10 @@ class SidebarButton: NSControl {
         self.index = index
         super.init(frame: .zero)
         self.translatesAutoresizingMaskIntoConstraints = false
-        self.heightAnchor.constraint(equalToConstant: 28).isActive = true
-        
+        // Button height: controls vertical spacing for each button.
+        // Change this value to adjust spacing between buttons and headers.
+        self.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        //end
         iconView.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)
         iconView.contentTintColor = .white
         

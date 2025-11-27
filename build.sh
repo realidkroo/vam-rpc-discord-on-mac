@@ -75,6 +75,49 @@ EOF
     cp "icon/roo.jpg" "$RESOURCES_PATH/"
 }
 
+# Attempt to quit any running instances of the built app.
+# First tries a graceful quit via AppleScript, then falls back to pkill.
+kill_running_instances() {
+    echo "Checking for running $APP_NAME instances..."
+
+    # Detect likely running processes: exact executable name or .app bundle
+    if pgrep -x "$APP_NAME" >/dev/null 2>&1 || pgrep -f "$APP_NAME.app" >/dev/null 2>&1; then
+        # Try a graceful quit via AppleScript (if available)
+        if command -v osascript >/dev/null 2>&1; then
+            osascript -e "tell application \"$APP_NAME\" to quit" >/dev/null 2>&1 || true
+            sleep 1
+        fi
+
+        # Force-kill any remaining processes that match the name or bundle
+        pkill -f "$APP_NAME" >/dev/null 2>&1 || true
+        pkill -f "$APP_NAME.app" >/dev/null 2>&1 || true
+
+        echo "Killed running $APP_NAME instances."
+    else
+        echo "No running $APP_NAME instances found."
+    fi
+}
+
+# Open the built app that matches the host architecture.
+open_app_for_host() {
+    local host_arch
+    host_arch=$(uname -m)
+    local target_dir
+    if [ "$host_arch" = "arm64" ]; then
+        target_dir="$DIST_DIR/Apple Silicon"
+    else
+        target_dir="$DIST_DIR/Intel"
+    fi
+
+    local app_path="$target_dir/$APP_NAME.app"
+    if [ -d "$app_path" ]; then
+        echo "Opening $APP_NAME for host architecture ($host_arch)..."
+        open "$app_path" >/dev/null 2>&1 || true
+    else
+        echo "Warning: built app not found at '$app_path' — not opening." >&2
+    fi
+}
+
 
 trap 'tput cnorm; exit' INT TERM
 tput civis
@@ -130,3 +173,10 @@ echo "##########################################"
 echo "# Build successful in folder $DIST_DIR :)"
 echo "##########################################"
 echo ""
+# After a successful build, attempt to quit any running instances so the
+# freshly built app can be launched without conflicts.
+kill_running_instances
+
+# After killing old instances, open the newly built app for this machine's
+# architecture so you can test immediately.
+open_app_for_host
