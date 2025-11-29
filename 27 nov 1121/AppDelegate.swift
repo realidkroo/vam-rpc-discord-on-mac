@@ -13,8 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // Window Controllers
     private var modernWindowController: NSWindowController?
-    private var legacyWindowController: NSWindowController?
-
+    
     // --- Configuration Paths ---
     private let plistName = "com.vam-rpc.agent.plist"
     private var plistPath: String { NSString(string: "~/Library/LaunchAgents/\(plistName)").expandingTildeInPath }
@@ -27,24 +26,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // --- App Lifecycle ---
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // 1. CRITICAL: Create directories FIRST before copying files
-        try? FileManager.default.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
-        
-        // 2. Copy agent.ts (Now that the folder exists)
         if let agentSourcePath = Bundle.main.path(forResource: "agent", ofType: "ts") {
             try? FileManager.default.removeItem(atPath: agentDestPath)
             try? FileManager.default.copyItem(atPath: agentSourcePath, toPath: agentDestPath)
         }
         
-        // 3. Setup Configs and Service
         ensureConfigFilesAreInPlace()
         ensureServiceIsRunning()
-        
-        // 4. UI Setup
         setupMenu()
         startStatusTimer()
         
-        // Trigger popup on launch
+        // Trigger popup on launch with a slight delay to ensure UI readiness
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.showStartupPopup()
         }
@@ -60,10 +52,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         
         let popover = NSPopover()
+        // Width 380 to accommodate side-by-side layout, Height 130 for button spacing
         popover.contentSize = NSSize(width: 380, height: 130)
         popover.behavior = .transient
-        // ENABLE Native Animation (Smooth slide/fade)
-        popover.animates = true
+        popover.animates = false // We handle animation manually
         
         let viewController = PopupViewController()
         viewController.appDelegate = self
@@ -88,6 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let menu = NSMenu()
         
+        // Simulate button at the top for easy testing
         let simItem = NSMenuItem(title: "Simulate Popup", action: #selector(showStartupPopup), keyEquivalent: "p")
         menu.addItem(simItem)
         menu.addItem(.separator())
@@ -143,26 +136,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
     
-    func openLegacySettings() {
-        if legacyWindowController == nil {
-            let vc = PreferencesViewController()
-            let win = NSWindow(contentViewController: vc)
-            win.styleMask = [.titled, .closable, .miniaturizable]
-            win.title = "Legacy Preferences"
-            win.center()
-            legacyWindowController = NSWindowController(window: win)
-        }
-        legacyWindowController?.showWindow(nil)
-    }
-    
     // --- Backend Helpers ---
     
     private func ensureConfigFilesAreInPlace() {
-        if !FileManager.default.fileExists(atPath: userConfigPath) {
-            if let bundledConfigPath = Bundle.main.path(forResource: "config", ofType: "json", inDirectory: "data") {
-                try? FileManager.default.copyItem(atPath: bundledConfigPath, toPath: userConfigPath)
+        do {
+            try FileManager.default.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
+            if !FileManager.default.fileExists(atPath: userConfigPath) {
+                if let bundledConfigPath = Bundle.main.path(forResource: "config", ofType: "json", inDirectory: "data") {
+                    try? FileManager.default.copyItem(atPath: bundledConfigPath, toPath: userConfigPath)
+                }
             }
-        }
+        } catch { print("Config setup error: \(error)") }
     }
 
     private func ensureServiceIsRunning() {
@@ -170,8 +154,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showAlert(title: "Fatal Error", text: "Deno was not found. Please install it.")
             return
         }
-        
-        // Ensure old process is killed
         _ = runShellCommand("/bin/launchctl", arguments: ["unload", plistPath])
         
         do {
@@ -200,7 +182,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             </dict>
             """
             try plistContent.write(toFile: plistPath, atomically: true, encoding: .utf8)
-        } catch { showAlert(title: "Error", text: "Failed to write plist: \(error.localizedDescription)") }
+        } catch { showAlert(title: "Error", text: "\(error.localizedDescription)") }
         
         _ = runShellCommand("/bin/launchctl", arguments: ["load", plistPath])
     }
@@ -238,14 +220,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func findDenoExecutable() -> String? {
-        let potentialPaths = ["/opt/homebrew/bin/deno", "/usr/local/bin/deno", "~/.deno/bin/deno"]
-        for path in potentialPaths {
-            let expandedPath = NSString(string: path).expandingTildeInPath
-            if FileManager.default.fileExists(atPath: expandedPath) {
-                return expandedPath
-            }
-        }
-        return nil
+        ["/opt/homebrew/bin/deno", "/usr/local/bin/deno", "~/.deno/bin/deno"].first {
+            FileManager.default.fileExists(atPath: NSString(string: $0).expandingTildeInPath)
+        }?.map { NSString(string: $0).expandingTildeInPath }
     }
     
     private func runShellCommand(_ command: String, arguments: [String]) -> String? {
@@ -277,14 +254,18 @@ class PopupViewController: NSViewController {
     private var iconImageView: NSImageView!
     private var preferencesButton: MinimalistButton!
     
-    private var contentContainer: NSView!
+    // Containers
+    private var contentContainer: NSView! // Holds text/icon for blurring
     private var mainContainer: NSView!
     
     private var blurFilter: CIFilter?
     private var presentationTimer: Timer?
+    private var blurTimer: Timer?
+    
     private var secondsRemaining = 5
     
     override func loadView() {
+        // Main View (Glass Background)
         let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 130))
         containerView.wantsLayer = true
         
@@ -295,11 +276,11 @@ class PopupViewController: NSViewController {
         bgBlur.wantsLayer = true
         bgBlur.layer?.cornerRadius = 18
         bgBlur.layer?.masksToBounds = true
-        bgBlur.alphaValue = 0.5 // Reduced Opacity
-        
         containerView.addSubview(bgBlur)
+        
         mainContainer = containerView
         
+        // --- Content Wrapper for Blur Effect ---
         contentContainer = NSView(frame: containerView.bounds)
         contentContainer.wantsLayer = true
         contentContainer.layer?.masksToBounds = false
@@ -308,10 +289,11 @@ class PopupViewController: NSViewController {
         // Prepare Filter
         blurFilter = CIFilter(name: "CIGaussianBlur")
         blurFilter?.setDefaults()
-        blurFilter?.setValue(20.0, forKey: "inputRadius")
-        blurFilter?.name = "myBlur"
+        blurFilter?.setValue(20.0, forKey: "inputRadius") // Start BLURRED
         
-        // Elements
+        // --- LAYOUT SETUP (Icon Left, Text Right, Button Bottom) ---
+        
+        // 1. Icon (Left Side)
         iconImageView = NSImageView()
         iconImageView.imageScaling = .scaleProportionallyUpOrDown
         if let iconImage = NSImage(contentsOfFile: "/Users/realidkroo/vam-rpc-discord-on-mac/icon/icon.png") {
@@ -326,6 +308,7 @@ class PopupViewController: NSViewController {
         iconImageView.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.1).cgColor
         contentContainer.addSubview(iconImageView)
         
+        // 2. Title (Right of Icon)
         titleLabel = NSTextField(labelWithString: "Vam-RPC lives here...!")
         titleLabel.font = NSFont.systemFont(ofSize: 15, weight: .bold)
         titleLabel.textColor = .labelColor
@@ -336,6 +319,7 @@ class PopupViewController: NSViewController {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.addSubview(titleLabel)
         
+        // 3. Subtitle / Countdown (Right of Icon, below Title)
         subtitleLabel = NSTextField(labelWithString: "this popup will closes in 5 second")
         subtitleLabel.font = NSFont.systemFont(ofSize: 12, weight: .medium)
         subtitleLabel.textColor = .secondaryLabelColor
@@ -346,6 +330,7 @@ class PopupViewController: NSViewController {
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.addSubview(subtitleLabel)
         
+        // 4. Button (Bottom, spanning width)
         preferencesButton = MinimalistButton(frame: .zero)
         preferencesButton.title = "Open preferences"
         preferencesButton.target = self
@@ -353,20 +338,25 @@ class PopupViewController: NSViewController {
         preferencesButton.translatesAutoresizingMaskIntoConstraints = false
         contentContainer.addSubview(preferencesButton)
         
+        // --- AUTO LAYOUT CONSTRAINTS ---
         NSLayoutConstraint.activate([
+            // Icon: Left margin 20, Top 20, Size 54x54
             iconImageView.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor, constant: 20),
             iconImageView.topAnchor.constraint(equalTo: contentContainer.topAnchor, constant: 20),
             iconImageView.widthAnchor.constraint(equalToConstant: 54),
             iconImageView.heightAnchor.constraint(equalToConstant: 54),
             
+            // Title: Left of Icon + 15, Top aligned with Icon (+2 offset for optics)
             titleLabel.leadingAnchor.constraint(equalTo: iconImageView.trailingAnchor, constant: 15),
             titleLabel.topAnchor.constraint(equalTo: iconImageView.topAnchor, constant: 2),
             titleLabel.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor, constant: -20),
             
+            // Subtitle: Leading aligned with Title, Below Title
             subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
             subtitleLabel.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor, constant: -20),
             
+            // Button: Bottom margin 15, Side margins 20, Height 28
             preferencesButton.bottomAnchor.constraint(equalTo: contentContainer.bottomAnchor, constant: -15),
             preferencesButton.leadingAnchor.constraint(equalTo: contentContainer.leadingAnchor, constant: 20),
             preferencesButton.trailingAnchor.constraint(equalTo: contentContainer.trailingAnchor, constant: -20),
@@ -375,27 +365,39 @@ class PopupViewController: NSViewController {
         
         self.view = containerView
         
-        // Initial State
-        contentContainer.layer?.filters = [blurFilter!]
+        // Initial State: Window opacity 0, scaled down
+        self.view.alphaValue = 0.0
+        self.view.layer?.transform = CATransform3DMakeScale(0.95, 0.95, 1.0)
     }
     
     @objc func openPreferences() {
         appDelegate?.showModernSettings()
     }
     
-    // --- ANIMATION LOGIC ---
+    // --- ANIMATION SEQUENCE ---
     
     func startPresentationSequence() {
+        // Reset state
         secondsRemaining = 5
         subtitleLabel.stringValue = "this popup will closes in 5 second"
+        self.view.alphaValue = 0.0
+        self.view.layer?.transform = CATransform3DMakeScale(0.95, 0.95, 1.0)
         
-        // Start blurred
-        blurFilter?.setValue(20.0, forKey: "inputRadius")
+        // Ensure content starts BLURRED
+        setBlurRadius(20.0)
         
-        // Animate Unblur
-        DispatchQueue.main.async {
-            self.animateBlur(to: 0.0, duration: 1.2)
-            self.startCountdown()
+        // Step 1: Fade In Window (Content remains blurry)
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.3
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            self.view.animator().alphaValue = 1.0
+            self.view.animator().layer?.transform = CATransform3DIdentity
+        }) {
+            // Step 2: Smoothly Unblur Content
+            self.animateBlurValue(from: 20.0, to: 0.0, duration: 0.8) {
+                // Step 3: Start Countdown
+                self.startCountdown()
+            }
         }
     }
     
@@ -405,26 +407,10 @@ class PopupViewController: NSViewController {
             guard let self = self else { return }
             self.secondsRemaining -= 1
             
-            // Pulse Animation on Text Change
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.2
-                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                self.subtitleLabel.animator().alphaValue = 0.3
-            }) {
-                if self.secondsRemaining > 0 {
-                    self.subtitleLabel.stringValue = "this popup will closes in \(self.secondsRemaining) second"
-                } else {
-                    self.subtitleLabel.stringValue = "Closing..."
-                }
-                
-                NSAnimationContext.runAnimationGroup({ context in
-                    context.duration = 0.2
-                    context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-                    self.subtitleLabel.animator().alphaValue = 1.0
-                })
-            }
-            
-            if self.secondsRemaining <= 0 {
+            if self.secondsRemaining > 0 {
+                self.subtitleLabel.stringValue = "this popup will closes in \(self.secondsRemaining) second"
+            } else {
+                self.subtitleLabel.stringValue = "Closing..."
                 timer.invalidate()
                 self.endPresentationSequence()
             }
@@ -432,30 +418,56 @@ class PopupViewController: NSViewController {
     }
     
     private func endPresentationSequence() {
-        // Blur Out
-        self.animateBlur(to: 20.0, duration: 0.8)
-        
-        // Close after blur
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            self.appDelegate?.closePopover()
+        // Step 4: Blur Content FIRST
+        self.animateBlurValue(from: 0.0, to: 20.0, duration: 0.6) {
+            // Step 5: Fade Out Window
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.4
+                self.view.animator().alphaValue = 0.0
+                self.view.animator().layer?.transform = CATransform3DMakeScale(0.95, 0.95, 1.0)
+            }) {
+                self.appDelegate?.closePopover()
+            }
         }
     }
     
-    private func animateBlur(to radius: CGFloat, duration: Double) {
-        guard let layer = contentContainer.layer else { return }
+    // Manual Blur Interpolation (Bypasses Core Animation filter quirks)
+    private func animateBlurValue(from start: CGFloat, to end: CGFloat, duration: Double, completion: @escaping () -> Void) {
+        let fps = 60.0
+        let steps = duration * fps
+        var currentStep = 0.0
         
-        let animation = CABasicAnimation(keyPath: "filters.myBlur.inputRadius")
-        let currentVal = (layer.presentation()?.value(forKeyPath: "filters.myBlur.inputRadius") as? CGFloat) ?? (radius == 0 ? 20.0 : 0.0)
-        
-        animation.fromValue = currentVal
-        animation.toValue = radius
-        animation.duration = duration
-        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        animation.fillMode = .forwards
-        animation.isRemovedOnCompletion = false
-        
-        layer.add(animation, forKey: "blurRadius")
-        blurFilter?.setValue(radius, forKey: "inputRadius")
+        blurTimer?.invalidate()
+        blurTimer = Timer.scheduledTimer(withTimeInterval: 1.0/fps, repeats: true) { [weak self] timer in
+            guard let self = self else { timer.invalidate(); return }
+            
+            currentStep += 1
+            let progress = CGFloat(currentStep / steps)
+            
+            // Cubic Ease Out
+            let ease = 1.0 - pow(1.0 - progress, 3.0)
+            let currentRadius = start + (end - start) * ease
+            
+            self.setBlurRadius(currentRadius)
+            
+            if currentStep >= steps {
+                self.setBlurRadius(end)
+                timer.invalidate()
+                completion()
+            }
+        }
+    }
+    
+    private func setBlurRadius(_ radius: CGFloat) {
+        // Remove filter if effectively 0 to improve performance and sharpness
+        if radius < 0.1 {
+            contentContainer.layer?.filters = []
+        } else {
+            blurFilter?.setValue(radius, forKey: "inputRadius")
+            if let filter = blurFilter {
+                contentContainer.layer?.filters = [filter]
+            }
+        }
     }
 }
 

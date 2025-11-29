@@ -51,7 +51,7 @@ class ModernPreferencesViewController: NSViewController, SidebarDelegate {
         contentArea.translatesAutoresizingMaskIntoConstraints = false
         floatingPill.translatesAutoresizingMaskIntoConstraints = false
         
-        // Sidebar: 280px wide default
+        // Sidebar: 280px wide (matching image 2)
         sidebarWidthConstraint = sidebar.widthAnchor.constraint(equalToConstant: 280)
         
         NSLayoutConstraint.activate([
@@ -86,10 +86,8 @@ class ModernPreferencesViewController: NSViewController, SidebarDelegate {
     
     // SidebarDelegate
     func toggleCollapse() {
-        // Updated logic: We only need to change the constraint.
-        // The SidebarView.layout() method handles the visuals automatically.
         let isCollapsed = (sidebarWidthConstraint.constant < 150)
-        let targetWidth: CGFloat = isCollapsed ? 280 : 72 // 72 matches Sidebar.swift collapsedWidth
+        let targetWidth: CGFloat = isCollapsed ? 280 : 75
         
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.3
@@ -97,7 +95,7 @@ class ModernPreferencesViewController: NSViewController, SidebarDelegate {
             sidebarWidthConstraint.animator().constant = targetWidth
         }
         
-        // ERROR FIXED: Removed 'sidebar.updateCollapseState(!isCollapsed)'
+        sidebar.updateCollapseState(!isCollapsed)
     }
     
     func didSelectPage(index: Int) {
