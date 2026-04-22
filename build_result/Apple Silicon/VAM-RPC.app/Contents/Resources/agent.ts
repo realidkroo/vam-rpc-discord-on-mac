@@ -288,6 +288,8 @@ async function main() {
                     const label = formatString(settings.youtubeMusicButtonLabel, track);
                     buttons.push({ label: ensureValidString(label, 2, 32), url: `https://music.youtube.com/search?q=${searchQuery}` });
                 }
+                // Discord RPC only allows maximum 2 buttons
+                if (buttons.length > 2) { buttons.length = 2; }
                 if (buttons.length > 0) { activity.buttons = buttons; }
 
                 await rpc.setActivity(activity);

@@ -1,12 +1,13 @@
 #!/bin/bash
 set -e
+cd "$(dirname "$0")"
 
 
 APP_NAME="VAM-RPC"
 SWIFT_SOURCES=("Swift/main.swift" "Swift/AppDelegate.swift" "Swift/PreferencesViewController.swift")
 AGENT_SCRIPT="agent.ts"
 ICON_SOURCE="icon/icon.png"
-PROFILE_PIC="icon/roo.png"
+PROFILE_PIC="icon/roo.jpg"
 DIST_DIR="build_result"
 dots_array=("." ".." "...")
 spinner_index=0

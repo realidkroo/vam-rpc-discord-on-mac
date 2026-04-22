@@ -76,6 +76,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             try? FileManager.default.removeItem(atPath: agentDestPath)
 
             try FileManager.default.copyItem(atPath: agentSourcePath, toPath: agentDestPath)
+            
+            // Ensure the LaunchAgents directory exists
+            let plistDir = (plistPath as NSString).deletingLastPathComponent
+            try FileManager.default.createDirectory(atPath: plistDir, withIntermediateDirectories: true)
+            
             let plistContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>Label</key><string>\(plistName)</string><key>ProgramArguments</key><array><string>\(denoPath)</string><string>run</string><string>-A</string><string>\(agentDestPath)</string></array><key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>StandardOutPath</key><string>\(supportDir)/stdout.log</string><key>StandardErrorPath</key><string>\(supportDir)/stderr.log</string></dict></plist>"
             try plistContent.write(toFile: plistPath, atomically: true, encoding: .utf8)
         } catch {

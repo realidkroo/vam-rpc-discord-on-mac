@@ -2,6 +2,7 @@
 
 #!/bin/bash
 set -e
+cd "$(dirname "$0")"
 
 APP_NAME="VAM-RPC"
 SWIFT_SOURCES=("Swift/main.swift" "Swift/AppDelegate.swift" "Swift/PreferencesViewController.swift")
