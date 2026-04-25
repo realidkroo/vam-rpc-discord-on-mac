@@ -5,8 +5,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP_NAME="VAM-RPC"
-SWIFT_SOURCES=("Swift/main.swift" "Swift/AppDelegate.swift" "Swift/PreferencesViewController.swift")
-AGENT_SCRIPT="agent.ts"
+SWIFT_SOURCES=("Swift/main.swift" "Swift/AppDelegate.swift" "Swift/PreferencesViewController.swift" "Swift/DiscordRPC.swift" "Swift/Agent.swift")
 ICON_SOURCE="icon/icon.png"
 DIST_DIR="build_result"
 
@@ -50,10 +49,9 @@ build_for_arch() {
     cat > "$CONTENTS_PATH/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>CFBundleExecutable</key><string>$APP_NAME</string><key>CFBundleIconFile</key><string>AppIcon.icns</string><key>CFBundleIdentifier</key><string>com.vam-rpc.app</string><key>LSMinimumSystemVersion</key><string>11.0</string><key>LSUIElement</key><true/></dict></plist>
+<plist version="1.0"><dict><key>CFBundleExecutable</key><string>$APP_NAME</string><key>CFBundleIconFile</key><string>AppIcon.icns</string><key>CFBundleIdentifier</key><string>com.vam-rpc.app</string><key>LSMinimumSystemVersion</key><string>11.0</string><key>LSUIElement</key><true/><key>NSAppleEventsUsageDescription</key><string>VAM-RPC needs to control Music to show your currently playing track.</string></dict></plist>
 EOF
     swiftc -suppress-warnings -o "$MACOS_PATH/$APP_NAME" $SWIFT_TARGET -sdk "$(xcrun --show-sdk-path)" -framework Cocoa "${SWIFT_SOURCES[@]}"
-    cp "$AGENT_SCRIPT" "$RESOURCES_PATH/"
     cp -R "data" "$RESOURCES_PATH/"
     
 

@@ -40,14 +40,7 @@ vam-rpc is a Open Source Apple Music status for Discord Rich Presence On Mac. Th
 https://github.com/user-attachments/assets/b357eba3-0ae0-4938-be3a-191da322314a
 
 # How to Install
-Theres 2 Ways. One by building the app yourself or use the precompiled on [release](https://github.com/realidkroo/vam-rpc-discord-on-mac/releases). Install it based on your mac Architecture.  Because the app have Deno dependencies, Install it first. 
-```sh
-curl -fsSL https://deno.land/install.sh | sh
-```
-Or by using Brew
-```sh
-Brew install deno
-```
+There's 2 ways. One by building the app yourself or use the precompiled on [release](https://github.com/realidkroo/vam-rpc-discord-on-mac/releases). Install it based on your Mac architecture. No external dependencies are required!
 
 ## Building Manually
 Firstly, Clone this Repo by entering this command
@@ -61,8 +54,5 @@ Then navigate to the parent folder and run
 When it successfully compiling the app is on build_result
 
 # Dependencies
-To install you only need Deno
-```sh
-Brew install deno
-```
+No external dependencies needed. It's a fully native Swift macOS application!
 [![Stargazers over time](https://starchart.cc/realidkroo/vam-rpc-discord-on-mac.svg?variant=adaptive)](https://starchart.cc/realidkroo/vam-rpc-discord-on-mac)

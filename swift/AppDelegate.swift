@@ -9,17 +9,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusUpdateTimer: Timer?
     private var preferencesWindowController: NSWindowController?
 
-    private let plistName = "com.vam-rpc.agent.plist"
-    private var plistPath: String { NSString(string: "~/Library/LaunchAgents/\(plistName)").expandingTildeInPath }
     private var supportDir: String { NSString(string: "~/Library/Application Support/VAM-RPC").expandingTildeInPath }
     private var dataDir: String { "\(supportDir)/data" }
     private var userConfigPath: String { "\(dataDir)/config.json" }
-    private var agentDestPath: String { "\(supportDir)/agent.ts" }
     private var statusFilePath: String { "\(supportDir)/status.txt" }
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         ensureConfigFilesAreInPlace()
-        ensureServiceIsRunning()
+        Agent.shared.start()
         setupMenu()
         startStatusTimer()
     }
@@ -57,57 +54,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func ensureServiceIsRunning() {
-        guard let denoPath = findDenoExecutable() else {
-            showAlert(title: "Fatal Error", text: "Deno was not found. Please install it from deno.land and relaunch.")
-            NSApp.terminate(nil)
-            return
-        }
-        guard let agentSourcePath = Bundle.main.path(forResource: "agent", ofType: "ts") else {
-            showAlert(title: "Fatal Error", text: "agent.ts script missing from app bundle.")
-            NSApp.terminate(nil)
-            return
-        }
-        
-        _ = runShellCommand("/bin/launchctl", arguments: ["unload", plistPath])
-        
-        do {
-            try? FileManager.default.removeItem(atPath: plistPath)
-            try? FileManager.default.removeItem(atPath: agentDestPath)
-
-            try FileManager.default.copyItem(atPath: agentSourcePath, toPath: agentDestPath)
-            
-            // Ensure the LaunchAgents directory exists
-            let plistDir = (plistPath as NSString).deletingLastPathComponent
-            try FileManager.default.createDirectory(atPath: plistDir, withIntermediateDirectories: true)
-            
-            let plistContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>Label</key><string>\(plistName)</string><key>ProgramArguments</key><array><string>\(denoPath)</string><string>run</string><string>-A</string><string>\(agentDestPath)</string></array><key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>StandardOutPath</key><string>\(supportDir)/stdout.log</string><key>StandardErrorPath</key><string>\(supportDir)/stderr.log</string></dict></plist>"
-            try plistContent.write(toFile: plistPath, atomically: true, encoding: .utf8)
-        } catch {
-            showAlert(title: "Fatal Error", text: "Could not write service files: \(error.localizedDescription)")
-            NSApp.terminate(nil)
-        }
-        
-        _ = runShellCommand("/bin/launchctl", arguments: ["load", plistPath])
-    }
+    // Service running logic handled natively by Agent now.
     
     private func isServiceActive() -> Bool {
         return FileManager.default.fileExists(atPath: statusFilePath)
     }
 
     @objc func toggleServicePause() {
-        if isServiceActive() {
-            _ = runShellCommand("/bin/launchctl", arguments: ["unload", plistPath])
-            try? FileManager.default.removeItem(atPath: statusFilePath)
-        } else {
-            _ = runShellCommand("/bin/launchctl", arguments: ["load", plistPath])
-        }
+        _ = Agent.shared.togglePause()
         updateStatus()
     }
     
     @objc func quitApp() {
-        _ = runShellCommand("/bin/launchctl", arguments: ["unload", plistPath])
-        try? FileManager.default.removeItem(atPath: plistPath)
+        Agent.shared.stop()
         NSApplication.shared.terminate(self)
     }
     
@@ -129,7 +88,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    private func findDenoExecutable() -> String? { ["/opt/homebrew/bin/deno", "/usr/local/bin/deno", "~/.deno/bin/deno"].first { FileManager.default.fileExists(atPath: NSString(string: $0).expandingTildeInPath) }.map { NSString(string: $0).expandingTildeInPath } }
     private func runShellCommand(_ command: String, arguments: [String]) -> String? { let task = Process(); task.executableURL = URL(fileURLWithPath: command); task.arguments = arguments; let pipe = Pipe(); task.standardOutput = pipe; try? task.run(); let data = pipe.fileHandleForReading.readDataToEndOfFile(); return String(data: data, encoding: .utf8) }
     private func showAlert(title: String, text: String) { let alert = NSAlert(); alert.messageText = title; alert.informativeText = text; alert.runModal(); }
     
